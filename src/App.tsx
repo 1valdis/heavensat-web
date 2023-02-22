@@ -168,7 +168,7 @@ const lineFragmentSource = `#version 300 es
   out vec4 lineColor;
 
   void main() {
-    lineColor = vec4(0.5, 0.5, 0.5, 1.0);
+    lineColor = vec4(0.4, 0.4, 0.4, 1.0);
   }
 `
 
