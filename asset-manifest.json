@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/heavensat-web/static/css/main.8a685450.css",
+    "main.js": "/heavensat-web/static/js/main.d154a2f4.js",
+    "index.html": "/heavensat-web/index.html",
+    "main.8a685450.css.map": "/heavensat-web/static/css/main.8a685450.css.map",
+    "main.d154a2f4.js.map": "/heavensat-web/static/js/main.d154a2f4.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.8a685450.css",
+    "static/js/main.d154a2f4.js"
+  ]
+}
