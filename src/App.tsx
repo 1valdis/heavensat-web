@@ -1,326 +1,303 @@
-import { mat4 } from 'gl-matrix'
+import { mat4, vec3 } from 'gl-matrix'
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { useAnimationFrame } from './useAnimationFrame'
+import hipparcosCatalogOriginal from './hipparcos_8_concise.json'
+import constellationLineship from './constellationLineship.json'
 
-interface Buffers { position: WebGLBuffer, color: WebGLBuffer, indices: WebGLBuffer }
-interface ProgramInfo { program: WebGLProgram, attribLocations: { [name: string]: GLint }, uniformLocations: { [name: string]: WebGLUniformLocation } }
+function bvToRgb (bv: number): [number, number, number] {
+  const temperature = 4600 * ((1 / ((0.92 * bv) + 1.7)) + (1 / ((0.92 * bv) + 0.62)))
+  let red, green, blue
 
-function loadShader (ctx: WebGL2RenderingContext, type: number, source: string): WebGLShader {
-  const shader = ctx.createShader(type)!
+  if (temperature <= 6600) {
+    red = 1
+    green = 0.390 * Math.log10(temperature) - 0.631
+  } else {
+    red = 1.292 * Math.pow(temperature / 100 - 60, -0.133)
+    green = 1.129 * Math.pow(temperature / 100 - 60, -0.075)
+  }
+
+  if (temperature <= 1900) {
+    blue = 0
+  } else if (temperature < 6600) {
+    blue = -0.018 * Math.log10(temperature) - 0.258
+  } else {
+    blue = 0.8 * Math.pow(temperature / 100 - 60, 0.45)
+  }
+
+  // Apply gamma correction with a gamma value of 2.2
+  red = Math.pow(red, 2.2)
+  green = Math.pow(green, 2.2)
+  blue = Math.pow(blue, 2.2)
+
+  return [red, green, blue]
+}
+
+function raDecToCartesian (ra: number, dec: number): vec3 {
+  // Convert equatorial coordinates to spherical coordinates
+  const theta = Math.PI / 2 - (dec * Math.PI / 180)
+  const phi = ra * Math.PI / 180
+
+  const r = 1
+
+  // Convert spherical coordinates to Cartesian coordinates
+  const x = r * Math.sin(theta) * Math.cos(phi)
+  const y = r * Math.sin(theta) * Math.sin(phi)
+  const z = r * Math.cos(theta)
+
+  return [x, y, z]
+}
+
+type HIPStarOriginal = [number, number, number, number, number]
+
+type HIPStar = {
+  id: number,
+  coords: vec3,
+  bv: number,
+  mag: number
+}
+
+const hipFiltered = hipparcosCatalogOriginal.filter((item) => item[1]! < 6.7)
+
+const hipparcosCartesian: HIPStar[] = (hipFiltered as HIPStarOriginal[]).map((item) => ({
+  id: item[0],
+  mag: item[1],
+  coords: raDecToCartesian(item[2], item[3]),
+  bv: item[4]
+}))
+
+// const constellationLines = constellationLineship.map(constellation => {
+//   const hipIndexes = constellation.slice(2)
+//   const pairs = hipIndexes.map((item, index) => {
+//     if (index >= hipIndexes.length - 1) return []
+//     return [item, hipIndexes[index + 1]]
+//   })
+//   return pairs.flat()
+// }).flat().map(hipIndex => {
+//   const star = hipparcosCartesian.find(item => item.id === hipIndex)
+//   if (!star) throw new Error(`No star with id ${hipIndex}`)
+//   return star.coords
+// })
+
+const constellationLines = constellationLineship.map(constellation => constellation.slice(2))
+  .flat().map(hipIndex => {
+    const star = hipparcosCartesian.find(item => item.id === hipIndex)
+    if (!star) throw new Error(`No star with id ${hipIndex}`)
+    return star.coords
+  })
+
+function loadShader (gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
+  const shader = gl.createShader(type)!
   // Send the source to the shader object
-  ctx.shaderSource(shader, source)
+  gl.shaderSource(shader, source)
   // Compile the shader program
-  ctx.compileShader(shader)
+  gl.compileShader(shader)
   // See if it compiled successfully
-  if (!ctx.getShaderParameter(shader, ctx.COMPILE_STATUS)) {
-    alert(`An error occurred compiling the shaders: ${ctx.getShaderInfoLog(shader)}`)
-    ctx.deleteShader(shader)
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    alert(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`)
+    gl.deleteShader(shader)
     throw new Error("Couldn't compile shader")
   }
   return shader
 }
 
-function initShaderProgram (ctx: WebGL2RenderingContext, vsSource: string, fsSource: string): WebGLProgram {
-  const vertexShader = loadShader(ctx, ctx.VERTEX_SHADER, vsSource)
-  const fragmentShader = loadShader(ctx, ctx.FRAGMENT_SHADER, fsSource)
+function initShaderProgram (gl: WebGL2RenderingContext, vsSource: string, fsSource: string): WebGLProgram {
+  const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource)
+  const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource)
 
   // Create the shader program
-  const shaderProgram = ctx.createProgram()!
-  ctx.attachShader(shaderProgram, vertexShader)
-  ctx.attachShader(shaderProgram, fragmentShader)
-  ctx.linkProgram(shaderProgram)
+  const shaderProgram = gl.createProgram()!
+  gl.attachShader(shaderProgram, vertexShader)
+  gl.attachShader(shaderProgram, fragmentShader)
+  gl.linkProgram(shaderProgram)
 
   // If creating the shader program failed, alert
-  if (!ctx.getProgramParameter(shaderProgram, ctx.LINK_STATUS)) {
-    alert(`Unable to initialize the shader program: ${ctx.getProgramInfoLog(shaderProgram)}`)
+  if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+    alert(`Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`)
     throw new Error("Couldn't initialize shader program")
   }
 
   return shaderProgram
 }
 
-function initBuffers (ctx: WebGL2RenderingContext): Buffers {
-  // Create a buffer for the square's positions.
+const starVertexSource = `#version 300 es
+  precision highp float;
 
-  const positionBuffer = ctx.createBuffer()!
+  in vec4 a_position;
+  in mediump float a_size;
+  in vec4 a_color;
 
-  // Select the positionBuffer as the one to apply buffer
-  // operations to from here out.
+  out vec4 v_color;
 
-  ctx.bindBuffer(ctx.ARRAY_BUFFER, positionBuffer)
+  uniform mat4 u_projectionMatrix;
+  uniform mat4 u_modelViewMatrix;
 
-  // Now create an array of positions for the square.
-
-  const positions = [
-    // Front face
-    -1.0, -1.0, 1.0,
-    1.0, -1.0, 1.0,
-    1.0, 1.0, 1.0,
-    -1.0, 1.0, 1.0,
-
-    // Back face
-    -1.0, -1.0, -1.0,
-    -1.0, 1.0, -1.0,
-    1.0, 1.0, -1.0,
-    1.0, -1.0, -1.0,
-
-    // Top face
-    -1.0, 1.0, -1.0,
-    -1.0, 1.0, 1.0,
-    1.0, 1.0, 1.0,
-    1.0, 1.0, -1.0,
-
-    // Bottom face
-    -1.0, -1.0, -1.0,
-    1.0, -1.0, -1.0,
-    1.0, -1.0, 1.0,
-    -1.0, -1.0, 1.0,
-
-    // Right face
-    1.0, -1.0, -1.0,
-    1.0, 1.0, -1.0,
-    1.0, 1.0, 1.0,
-    1.0, -1.0, 1.0,
-
-    // Left face
-    -1.0, -1.0, -1.0,
-    -1.0, -1.0, 1.0,
-    -1.0, 1.0, 1.0,
-    -1.0, 1.0, -1.0
-  ]
-
-  // Now pass the list of positions into WebGL to build the
-  // shape. We do this by creating a Float32Array from the
-  // JavaScript array, then use it to fill the current buffer.
-
-  ctx.bufferData(ctx.ARRAY_BUFFER,
-    new Float32Array(positions),
-    ctx.STATIC_DRAW)
-
-  const faceColors = [
-    [1.0, 1.0, 1.0, 1.0], // Front face: white
-    [1.0, 0.0, 0.0, 1.0], // Back face: red
-    [0.0, 1.0, 0.0, 1.0], // Top face: green
-    [0.0, 0.0, 1.0, 1.0], // Bottom face: blue
-    [1.0, 1.0, 0.0, 1.0], // Right face: yellow
-    [1.0, 0.0, 1.0, 1.0] // Left face: purple
-  ]
-
-  const colors: number[][] = []
-
-  for (const c of faceColors) {
-    // Repeat each color four times for the four vertices of the face
-    colors.push(c, c, c, c)
+  void main() {
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
+    gl_PointSize = a_size;
+    v_color = a_color;
   }
+`
 
-  const colorBuffer = ctx.createBuffer()!
-  ctx.bindBuffer(ctx.ARRAY_BUFFER, colorBuffer)
-  ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array(colors.flat()), ctx.STATIC_DRAW)
+const starFragmentSource = `#version 300 es
+  precision highp float;
 
-  const indexBuffer = ctx.createBuffer()!
-  ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, indexBuffer)
+  out vec4 starColor;
 
-  // This array defines each face as two triangles, using the
-  // indices into the vertex array to specify each triangle's
-  // position.
+  in vec4 v_color;
 
-  const indices = [
-    0, 1, 2, 0, 2, 3, // front
-    4, 5, 6, 4, 6, 7, // back
-    8, 9, 10, 8, 10, 11, // top
-    12, 13, 14, 12, 14, 15, // bottom
-    16, 17, 18, 16, 18, 19, // right
-    20, 21, 22, 20, 22, 23 // left
-  ]
-
-  // Now send the element array to GL
-
-  ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER,
-    new Uint16Array(indices), ctx.STATIC_DRAW)
-
-  return {
-    position: positionBuffer,
-    color: colorBuffer,
-    indices: indexBuffer
+  void main() {
+    starColor = v_color;
   }
-}
+`
 
-function drawScene (ctx: WebGL2RenderingContext, programInfo: ProgramInfo, buffers: Buffers, rotation: number): void {
-  ctx.clearColor(0.0, 0.0, 0.0, 1.0) // Clear to black, fully opaque
-  ctx.clearDepth(1.0) // Clear everything
-  ctx.enable(ctx.DEPTH_TEST) // Enable depth testing
-  ctx.depthFunc(ctx.LEQUAL) // Near things obscure far things
+const lineVertexSource = `#version 300 es
+  precision highp float;
+  in vec4 a_position;
 
-  // Clear the canvas before we start drawing on it.
+  uniform mat4 u_projectionMatrix;
+  uniform mat4 u_modelViewMatrix;
 
-  ctx.clear(ctx.COLOR_BUFFER_BIT | ctx.DEPTH_BUFFER_BIT)
-
-  // Create a perspective matrix, a special matrix that is
-  // used to simulate the distortion of perspective in a camera.
-  // Our field of view is 45 degrees, with a width/height
-  // ratio that matches the display size of the canvas
-  // and we only want to see objects between 0.1 units
-  // and 100 units away from the camera.
-
-  const fieldOfView = 390 * Math.PI / 180 // in radians
-  const aspect = ctx.drawingBufferWidth / ctx.drawingBufferHeight
-  const zNear = 0.1
-  const zFar = 100.0
-  const projectionMatrix = mat4.create()
-
-  // note: glmatrix.js always has the first argument
-  // as the destination to receive the result.
-  mat4.perspective(projectionMatrix,
-    fieldOfView,
-    aspect,
-    zNear,
-    zFar)
-
-  // Set the drawing position to the "identity" point, which is
-  // the center of the scene.
-  const modelViewMatrix = mat4.create()
-
-  // Now move the drawing position a bit to where we want to
-  // start drawing the square.
-
-  mat4.translate(modelViewMatrix, // destination matrix
-    modelViewMatrix, // matrix to translate
-    [-0.0, 0.0, -6.0]) // amount to translate
-
-  mat4.rotate(modelViewMatrix, // destination matrix
-    modelViewMatrix, // matrix to rotate
-    rotation, // amount to rotate in radians
-    [0, 0, 1]) // axis to rotate around
-  mat4.rotate(modelViewMatrix, modelViewMatrix, rotation * 0.6, [0, 1, 0])
-  mat4.rotate(modelViewMatrix, modelViewMatrix, rotation * 0.2, [0, 0, 1])
-
-  // Tell WebGL how to pull out the positions from the position
-  // buffer into the vertexPosition attribute.
-  {
-    const numComponents = 3 // pull out 2 values per iteration
-    const type = ctx.FLOAT // the data in the buffer is 32bit floats
-    const normalize = false // don't normalize
-    const stride = 0 // how many bytes to get from one set of values to the next
-    // 0 = use type and numComponents above
-    const offset = 0 // how many bytes inside the buffer to start from
-    ctx.bindBuffer(ctx.ARRAY_BUFFER, buffers.position)
-    ctx.vertexAttribPointer(
-      programInfo.attribLocations.vertexPosition!,
-      numComponents,
-      type,
-      normalize,
-      stride,
-      offset)
-    ctx.enableVertexAttribArray(
-      programInfo.attribLocations.vertexPosition!)
+  void main() {
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
   }
+`
 
-  {
-    const numComponents = 4
-    const type = ctx.FLOAT
-    const normalize = false
-    const stride = 0
-    const offset = 0
-    ctx.bindBuffer(ctx.ARRAY_BUFFER, buffers.color)
-    ctx.vertexAttribPointer(
-      programInfo.attribLocations.vertexColor!,
-      numComponents,
-      type,
-      normalize,
-      stride,
-      offset)
-    ctx.enableVertexAttribArray(
-      programInfo.attribLocations.vertexColor!)
+const lineFragmentSource = `#version 300 es
+  precision highp float;
+  out vec4 lineColor;
+
+  void main() {
+    lineColor = vec4(0.5, 0.5, 0.5, 1.0);
   }
+`
 
-  // Tell WebGL to use our program when drawing
+const positions = hipparcosCartesian.map(star => star.coords)
+const sizes = hipparcosCartesian.map(star => Math.max((5 - star.mag), 1))
+const colors = hipparcosCartesian.map(star => bvToRgb(star.bv))
 
-  ctx.useProgram(programInfo.program)
+function drawStars (gl: WebGL2RenderingContext, projectionMatrix: mat4, modelViewMatrix: mat4) {
+  const program = initShaderProgram(gl, starVertexSource, starFragmentSource)
 
-  // Set the shader uniforms
+  const positionBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions.flat() as number[]), gl.STATIC_DRAW)
+  const positionLocation = gl.getAttribLocation(program, 'a_position')
+  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(positionLocation)
 
-  ctx.uniformMatrix4fv(
-    programInfo.uniformLocations.projectionMatrix!,
+  const sizeBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sizes), gl.STATIC_DRAW)
+  const sizeLocation = gl.getAttribLocation(program, 'a_size')
+  gl.vertexAttribPointer(sizeLocation, 1, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(sizeLocation)
+
+  const colorBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors.flat()), gl.STATIC_DRAW)
+  const colorLocation = gl.getAttribLocation(program, 'a_color')
+  gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(colorLocation)
+
+  gl.useProgram(program)
+
+  const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
+  gl.uniformMatrix4fv(
+    projectionLocation,
     false,
     projectionMatrix)
-  ctx.uniformMatrix4fv(
-    programInfo.uniformLocations.modelViewMatrix!,
+
+  const modelViewLocation = gl.getUniformLocation(program, 'u_modelViewMatrix')
+  gl.uniformMatrix4fv(
+    modelViewLocation,
     false,
     modelViewMatrix)
 
-  // Tell WebGL which indices to use to index the vertices
-  ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, buffers.indices)
+  gl.drawArrays(gl.POINTS, 0, hipparcosCartesian.length)
+}
 
-  {
-    const vertexCount = 36
-    const type = ctx.UNSIGNED_SHORT
-    const offset = 0
-    ctx.drawElements(ctx.TRIANGLES, vertexCount, type, offset)
-  }
+function drawLines (gl: WebGL2RenderingContext, projectionMatrix: mat4, modelViewMatrix: mat4) {
+  const program = initShaderProgram(gl, lineVertexSource, lineFragmentSource)
+
+  const positionBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(constellationLines.flat() as number[]), gl.STATIC_DRAW)
+  const positionLocation = gl.getAttribLocation(program, 'a_position')
+  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(positionLocation)
+  gl.lineWidth(0.5)
+
+  gl.useProgram(program)
+
+  const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
+  gl.uniformMatrix4fv(
+    projectionLocation,
+    false,
+    projectionMatrix)
+
+  const modelViewLocation = gl.getUniformLocation(program, 'u_modelViewMatrix')
+  gl.uniformMatrix4fv(
+    modelViewLocation,
+    false,
+    modelViewMatrix)
+
+  gl.drawArrays(gl.LINES, 0, constellationLines.length)
 }
 
 function App () {
   const ref = useRef<HTMLCanvasElement>(null)
-
-  const vsSource = `
-    attribute vec4 aVertexPosition;
-    attribute vec4 aVertexColor;
-
-    uniform mat4 uModelViewMatrix;
-    uniform mat4 uProjectionMatrix;
-
-    varying lowp vec4 vColor;
-
-    void main(void) {
-      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-      vColor = aVertexColor;
-    }
-  `
-
-  const fsSource = `
-    varying lowp vec4 vColor;
-
-    void main(void) {
-      gl_FragColor = vColor;
-    }
-  `
 
   const [rotation, setRotation] = useState(0)
 
   useAnimationFrame(deltaTime => {
     // Pass on a function to the setter of the state
     // to make sure we always have the latest state
-    setRotation(prevCount => prevCount + deltaTime * 0.001)
+    setRotation(prevCount => prevCount + deltaTime * 0.0001)
   })
 
   useEffect(() => {
-    const ctx = ref.current!.getContext('webgl2')!
-    ctx.clearColor(0, 0, 0, 1)
-    ctx.clear(ctx.COLOR_BUFFER_BIT)
+    const gl = ref.current!.getContext('webgl2')!
+    gl.clearColor(0, 0, 0, 1)
+    gl.clear(gl.COLOR_BUFFER_BIT)
 
-    const shaderProgram = initShaderProgram(ctx, vsSource, fsSource)
+    const fieldOfView = 60 * Math.PI / 180 // in radians
+    const aspect = gl.drawingBufferWidth / gl.drawingBufferHeight
+    const zNear = 0
+    const zFar = 100.0
+    const projectionMatrix = mat4.create()
 
-    const buffers = initBuffers(ctx)
+    // note: glmatrix.js always has the first argument
+    // as the destination to receive the result.
+    mat4.perspective(projectionMatrix,
+      fieldOfView,
+      aspect,
+      zNear,
+      zFar)
 
-    const programInfo: ProgramInfo = {
-      program: shaderProgram,
-      attribLocations: {
-        vertexPosition: ctx.getAttribLocation(shaderProgram, 'aVertexPosition'),
-        vertexColor: ctx.getAttribLocation(shaderProgram, 'aVertexColor')
-      },
-      uniformLocations: {
-        projectionMatrix: ctx.getUniformLocation(shaderProgram, 'uProjectionMatrix')!,
-        modelViewMatrix: ctx.getUniformLocation(shaderProgram, 'uModelViewMatrix')!
-      }
-    }
+    // Set the shader uniforms
 
-    drawScene(ctx, programInfo, buffers, rotation)
+    const modelViewMatrix = mat4.create()
+
+    // Now move the drawing position a bit to where we want to
+    // start drawing the square.
+
+    mat4.translate(modelViewMatrix,
+      modelViewMatrix,
+      [0.0, 0.0, -2])
+
+    mat4.rotate(modelViewMatrix,
+      modelViewMatrix,
+      rotation,
+      [1, 0, 0])
+
+    drawLines(gl, projectionMatrix, modelViewMatrix)
+    drawStars(gl, projectionMatrix, modelViewMatrix)
   })
 
   return (
     <div className="App">
-      <canvas ref={ref} width={640} height={480}></canvas>
+      <canvas ref={ref} width={1000} height={800}></canvas>
     </div>
   )
 }
