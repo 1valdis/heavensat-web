@@ -57,9 +57,7 @@ type HIPStar = {
   mag: number
 }
 
-const hipFiltered = hipparcosCatalogOriginal.filter((item) => true)
-
-const hipparcosCartesian: HIPStar[] = (hipFiltered as HIPStarOriginal[]).map((item) => ({
+const hipparcosCartesian: HIPStar[] = (hipparcosCatalogOriginal as HIPStarOriginal[]).map((item) => ({
   id: item[0],
   mag: item[1],
   coords: raDecToCartesian(item[2], item[3]),
