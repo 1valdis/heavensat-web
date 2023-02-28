@@ -33,10 +33,10 @@ function bvToRgb (bv: number): [number, number, number] {
   return [red, green, blue]
 }
 
-function raDecToCartesian (ra: number, dec: number): vec3 {
+function raDecToCartesian (raDegrees: number, decDegrees: number): vec3 {
   // Convert equatorial coordinates to spherical coordinates
-  const theta = Math.PI / 2 - (dec * Math.PI / 180)
-  const phi = ra * Math.PI / 180
+  const theta = Math.PI / 2 - (decDegrees * Math.PI / 180)
+  const phi = raDegrees * Math.PI / 180
 
   const r = 1
 
@@ -57,7 +57,7 @@ type HIPStar = {
   mag: number
 }
 
-const hipFiltered = hipparcosCatalogOriginal.filter((item) => item[1]! < 6.7)
+const hipFiltered = hipparcosCatalogOriginal.filter((item) => item[1]! < 7)
 
 const hipparcosCartesian: HIPStar[] = (hipFiltered as HIPStarOriginal[]).map((item) => ({
   id: item[0],
@@ -93,11 +93,11 @@ function loadShader (gl: WebGL2RenderingContext, type: number, source: string): 
   // Compile the shader program
   gl.compileShader(shader)
   // See if it compiled successfully
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    alert(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`)
-    gl.deleteShader(shader)
-    throw new Error("Couldn't compile shader")
-  }
+  // if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+  //   alert(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`)
+  //   gl.deleteShader(shader)
+  //   throw new Error("Couldn't compile shader")
+  // }
   return shader
 }
 
@@ -176,8 +176,8 @@ const positions = hipparcosCartesian.map(star => star.coords)
 const sizes = hipparcosCartesian.map(star => Math.max((5 - star.mag), 1))
 const colors = hipparcosCartesian.map(star => bvToRgb(star.bv))
 
-function drawStars (gl: WebGL2RenderingContext, projectionMatrix: mat4, modelViewMatrix: mat4) {
-  const program = initShaderProgram(gl, starVertexSource, starFragmentSource)
+function drawStars (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) {
+  gl.useProgram(program)
 
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
@@ -200,8 +200,6 @@ function drawStars (gl: WebGL2RenderingContext, projectionMatrix: mat4, modelVie
   gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(colorLocation)
 
-  gl.useProgram(program)
-
   const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
   gl.uniformMatrix4fv(
     projectionLocation,
@@ -217,8 +215,8 @@ function drawStars (gl: WebGL2RenderingContext, projectionMatrix: mat4, modelVie
   gl.drawArrays(gl.POINTS, 0, hipparcosCartesian.length)
 }
 
-function drawLines (gl: WebGL2RenderingContext, projectionMatrix: mat4, modelViewMatrix: mat4) {
-  const program = initShaderProgram(gl, lineVertexSource, lineFragmentSource)
+function drawLines (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) {
+  gl.useProgram(program)
 
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
@@ -227,8 +225,6 @@ function drawLines (gl: WebGL2RenderingContext, projectionMatrix: mat4, modelVie
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
   gl.lineWidth(0.5)
-
-  gl.useProgram(program)
 
   const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
   gl.uniformMatrix4fv(
@@ -245,6 +241,18 @@ function drawLines (gl: WebGL2RenderingContext, projectionMatrix: mat4, modelVie
   gl.drawArrays(gl.LINES, 0, constellationLines.length)
 }
 
+type ShaderProgramsMap = {
+  stars: WebGLProgram,
+  constellations: WebGLProgram
+}
+
+function setupShaderPrograms (gl: WebGL2RenderingContext): ShaderProgramsMap {
+  return {
+    stars: initShaderProgram(gl, starVertexSource, starFragmentSource),
+    constellations: initShaderProgram(gl, lineVertexSource, lineFragmentSource)
+  }
+}
+
 function App () {
   const ref = useRef<HTMLCanvasElement>(null)
 
@@ -256,8 +264,20 @@ function App () {
     setRotation(prevCount => prevCount + deltaTime * 0.0001)
   })
 
+  const glRef = useRef<WebGL2RenderingContext>()
+  const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
+
   useEffect(() => {
     const gl = ref.current!.getContext('webgl2')!
+    glRef.current = gl
+    setShaderPrograms(setupShaderPrograms(glRef.current))
+    // no cleanup of shader programs since they are set up only once
+  }, [])
+
+  useEffect(() => {
+    const gl = glRef.current
+    if (!gl || !shaderPrograms) return
+
     gl.clearColor(0, 0, 0, 1)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
@@ -267,20 +287,13 @@ function App () {
     const zFar = 100.0
     const projectionMatrix = mat4.create()
 
-    // note: glmatrix.js always has the first argument
-    // as the destination to receive the result.
     mat4.perspective(projectionMatrix,
       fieldOfView,
       aspect,
       zNear,
       zFar)
 
-    // Set the shader uniforms
-
     const modelViewMatrix = mat4.create()
-
-    // Now move the drawing position a bit to where we want to
-    // start drawing the square.
 
     mat4.translate(modelViewMatrix,
       modelViewMatrix,
@@ -291,9 +304,9 @@ function App () {
       rotation,
       [1, 0, 0])
 
-    drawLines(gl, projectionMatrix, modelViewMatrix)
-    drawStars(gl, projectionMatrix, modelViewMatrix)
-  })
+    drawLines(gl, shaderPrograms.constellations, projectionMatrix, modelViewMatrix)
+    drawStars(gl, shaderPrograms.stars, projectionMatrix, modelViewMatrix)
+  }, [shaderPrograms, rotation])
 
   return (
     <div className="App">
