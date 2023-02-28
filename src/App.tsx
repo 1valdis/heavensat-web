@@ -57,7 +57,7 @@ type HIPStar = {
   mag: number
 }
 
-const hipFiltered = hipparcosCatalogOriginal.filter((item) => item[1]! < 7)
+const hipFiltered = hipparcosCatalogOriginal.filter((item) => true)
 
 const hipparcosCartesian: HIPStar[] = (hipFiltered as HIPStarOriginal[]).map((item) => ({
   id: item[0],
@@ -172,16 +172,16 @@ const lineFragmentSource = `#version 300 es
   }
 `
 
-const positions = hipparcosCartesian.map(star => star.coords)
+const positions = hipparcosCartesian.map(star => star.coords).flat() as number[]
 const sizes = hipparcosCartesian.map(star => Math.max((5 - star.mag), 1))
-const colors = hipparcosCartesian.map(star => bvToRgb(star.bv))
+const colors = hipparcosCartesian.map(star => bvToRgb(star.bv)).flat()
 
 function drawStars (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) {
   gl.useProgram(program)
 
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions.flat() as number[]), gl.STATIC_DRAW)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW)
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
@@ -195,7 +195,7 @@ function drawStars (gl: WebGL2RenderingContext, program: WebGLProgram, projectio
 
   const colorBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors.flat()), gl.STATIC_DRAW)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW)
   const colorLocation = gl.getAttribLocation(program, 'a_color')
   gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(colorLocation)
@@ -211,7 +211,6 @@ function drawStars (gl: WebGL2RenderingContext, program: WebGLProgram, projectio
     modelViewLocation,
     false,
     modelViewMatrix)
-
   gl.drawArrays(gl.POINTS, 0, hipparcosCartesian.length)
 }
 
