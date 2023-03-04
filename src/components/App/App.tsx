@@ -1,52 +1,12 @@
 import { mat4, vec3 } from 'gl-matrix'
-import { useEffect, useRef, useState } from 'react'
+import { RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
-import { useAnimationFrame } from './useAnimationFrame'
-import hipparcosCatalogOriginal from './hipparcos_8_concise.json'
-import constellationLineship from './constellationLineship.json'
-
-function bvToRgb (bv: number): [number, number, number] {
-  const temperature = 4600 * ((1 / ((0.92 * bv) + 1.7)) + (1 / ((0.92 * bv) + 0.62)))
-  let red, green, blue
-
-  if (temperature <= 6600) {
-    red = 1
-    green = 0.390 * Math.log10(temperature) - 0.631
-  } else {
-    red = 1.292 * Math.pow(temperature / 100 - 60, -0.133)
-    green = 1.129 * Math.pow(temperature / 100 - 60, -0.075)
-  }
-
-  if (temperature <= 1900) {
-    blue = 0
-  } else if (temperature < 6600) {
-    blue = -0.018 * Math.log10(temperature) - 0.258
-  } else {
-    blue = 0.8 * Math.pow(temperature / 100 - 60, 0.45)
-  }
-
-  // Apply gamma correction with a gamma value of 2.2
-  red = Math.pow(red, 2.2)
-  green = Math.pow(green, 2.2)
-  blue = Math.pow(blue, 2.2)
-
-  return [red, green, blue]
-}
-
-function raDecToCartesian (raDegrees: number, decDegrees: number): vec3 {
-  // Convert equatorial coordinates to spherical coordinates
-  const theta = Math.PI / 2 - (decDegrees * Math.PI / 180)
-  const phi = raDegrees * Math.PI / 180
-
-  const r = 1
-
-  // Convert spherical coordinates to Cartesian coordinates
-  const x = r * Math.sin(theta) * Math.cos(phi)
-  const y = r * Math.sin(theta) * Math.sin(phi)
-  const z = r * Math.cos(theta)
-
-  return [x, y, z]
-}
+import { useAnimationFrame } from '../../useAnimationFrame'
+import hipparcosCatalogOriginal from '../../hipparcos_8_concise.json'
+import constellationLineship from '../../constellationLineship.json'
+import { bvToRgb, degreesToRad, raDecToCartesian } from '../../util/celestial'
+import { initShaderProgram } from '../../util/webgl'
+import { starVertexSource, starFragmentSource, lineVertexSource, lineFragmentSource } from './shaders'
 
 type HIPStarOriginal = [number, number, number, number, number]
 
@@ -60,22 +20,9 @@ type HIPStar = {
 const hipparcosCartesian: HIPStar[] = (hipparcosCatalogOriginal as HIPStarOriginal[]).map((item) => ({
   id: item[0],
   mag: item[1],
-  coords: raDecToCartesian(item[2], item[3]),
+  coords: raDecToCartesian(degreesToRad(item[2]), degreesToRad(item[3])),
   bv: item[4]
 }))
-
-// const constellationLines = constellationLineship.map(constellation => {
-//   const hipIndexes = constellation.slice(2)
-//   const pairs = hipIndexes.map((item, index) => {
-//     if (index >= hipIndexes.length - 1) return []
-//     return [item, hipIndexes[index + 1]]
-//   })
-//   return pairs.flat()
-// }).flat().map(hipIndex => {
-//   const star = hipparcosCartesian.find(item => item.id === hipIndex)
-//   if (!star) throw new Error(`No star with id ${hipIndex}`)
-//   return star.coords
-// })
 
 const constellationLines = constellationLineship.map(constellation => constellation.slice(2))
   .flat().map(hipIndex => {
@@ -83,92 +30,6 @@ const constellationLines = constellationLineship.map(constellation => constellat
     if (!star) throw new Error(`No star with id ${hipIndex}`)
     return star.coords
   })
-
-function loadShader (gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
-  const shader = gl.createShader(type)!
-  // Send the source to the shader object
-  gl.shaderSource(shader, source)
-  // Compile the shader program
-  gl.compileShader(shader)
-  // See if it compiled successfully
-  // if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-  //   alert(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`)
-  //   gl.deleteShader(shader)
-  //   throw new Error("Couldn't compile shader")
-  // }
-  return shader
-}
-
-function initShaderProgram (gl: WebGL2RenderingContext, vsSource: string, fsSource: string): WebGLProgram {
-  const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource)
-  const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource)
-
-  // Create the shader program
-  const shaderProgram = gl.createProgram()!
-  gl.attachShader(shaderProgram, vertexShader)
-  gl.attachShader(shaderProgram, fragmentShader)
-  gl.linkProgram(shaderProgram)
-
-  // If creating the shader program failed, alert
-  if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-    alert(`Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`)
-    throw new Error("Couldn't initialize shader program")
-  }
-
-  return shaderProgram
-}
-
-const starVertexSource = `#version 300 es
-  precision highp float;
-
-  in vec4 a_position;
-  in mediump float a_size;
-  in vec4 a_color;
-
-  out vec4 v_color;
-
-  uniform mat4 u_projectionMatrix;
-  uniform mat4 u_modelViewMatrix;
-
-  void main() {
-    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
-    gl_PointSize = a_size;
-    v_color = a_color;
-  }
-`
-
-const starFragmentSource = `#version 300 es
-  precision highp float;
-
-  out vec4 starColor;
-
-  in vec4 v_color;
-
-  void main() {
-    starColor = v_color;
-  }
-`
-
-const lineVertexSource = `#version 300 es
-  precision highp float;
-  in vec4 a_position;
-
-  uniform mat4 u_projectionMatrix;
-  uniform mat4 u_modelViewMatrix;
-
-  void main() {
-    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
-  }
-`
-
-const lineFragmentSource = `#version 300 es
-  precision highp float;
-  out vec4 lineColor;
-
-  void main() {
-    lineColor = vec4(0.4, 0.4, 0.4, 1.0);
-  }
-`
 
 const positions = hipparcosCartesian.map(star => star.coords).flat() as number[]
 const sizes = hipparcosCartesian.map(star => Math.max((5 - star.mag), 1))
@@ -250,10 +111,53 @@ function setupShaderPrograms (gl: WebGL2RenderingContext): ShaderProgramsMap {
   }
 }
 
-function App () {
-  const ref = useRef<HTMLCanvasElement>(null)
+function useSphericalPanning (elementRef: RefObject<HTMLCanvasElement>, handleRotation: (deltaX: number, deltaY: number) => void) {
+  const [panning, setPanning] = useState(false)
+  // const [previousPoint, setPreviousPoint] = useState<{x: number, y: number} | null>(null)
 
+  const handlePointerDown = useCallback(() => {
+    setPanning(true)
+  }, [])
+
+  const handlePointerUp = useCallback(() => {
+    setPanning(false)
+  }, [])
+
+  const handlePointerMove = useCallback((event: PointerEvent) => {
+    if (panning && elementRef.current) {
+      const dx = event.movementX
+      const dy = event.movementY
+      const maxCanvasSize = Math.max(elementRef.current.width, elementRef.current.height)
+      const rotationX = dy * Math.PI / maxCanvasSize
+      const rotationY = dx * Math.PI / maxCanvasSize
+      handleRotation(rotationX, rotationY)
+    }
+  }, [handleRotation, elementRef, panning])
+
+  useEffect(() => {
+    if (!elementRef.current) return
+    const element = elementRef.current
+    element.addEventListener('pointerdown', handlePointerDown)
+    element.addEventListener('pointerleave', handlePointerUp)
+    element.addEventListener('pointercancel', handlePointerUp)
+    element.addEventListener('pointerup', handlePointerUp)
+    element.addEventListener('pointermove', handlePointerMove)
+    return () => {
+      element.removeEventListener('pointerdown', handlePointerDown)
+      element.removeEventListener('pointerleave', handlePointerUp)
+      element.removeEventListener('pointercancel', handlePointerUp)
+      element.removeEventListener('pointerup', handlePointerUp)
+      element.removeEventListener('pointermove', handlePointerMove)
+    }
+  }, [elementRef, handlePointerDown, handlePointerMove, handlePointerUp])
+}
+
+function App () {
   const [rotation, setRotation] = useState(0)
+  const [{ rotX, rotY }, setRotationAngles] = useState({ rotX: 0, rotY: 0 })
+
+  const ref = useRef<HTMLCanvasElement>(null)
+  const glRef = useRef<WebGL2RenderingContext>()
 
   useAnimationFrame(deltaTime => {
     // Pass on a function to the setter of the state
@@ -261,15 +165,21 @@ function App () {
     setRotation(prevCount => prevCount + deltaTime * 0.0001)
   })
 
-  const glRef = useRef<WebGL2RenderingContext>()
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
 
   useEffect(() => {
     const gl = ref.current!.getContext('webgl2')!
     glRef.current = gl
-    setShaderPrograms(setupShaderPrograms(glRef.current))
+    if (!shaderPrograms) {
+      setShaderPrograms(setupShaderPrograms(glRef.current))
+    }
     // no cleanup of shader programs since they are set up only once
-  }, [])
+    return () => Object.values(shaderPrograms ?? {}).forEach(program => gl.deleteProgram(program))
+  }, [shaderPrograms])
+
+  useSphericalPanning(ref, (dx, dy) => {
+    setRotationAngles({ rotX: Math.max(Math.min(rotX + dx, degreesToRad(90)), degreesToRad(-90)), rotY: rotY + dy })
+  })
 
   useEffect(() => {
     const gl = glRef.current
@@ -298,12 +208,19 @@ function App () {
 
     mat4.rotate(modelViewMatrix,
       modelViewMatrix,
-      rotation,
+      degreesToRad(-90),
       [1, 0, 0])
+
+    const newRotationMatrix = mat4.create()
+    mat4.rotateZ(newRotationMatrix, newRotationMatrix, rotY)
+    mat4.rotateX(newRotationMatrix, newRotationMatrix, rotX)
+    mat4.invert(newRotationMatrix, newRotationMatrix)
+
+    mat4.multiply(modelViewMatrix, modelViewMatrix, newRotationMatrix)
 
     drawLines(gl, shaderPrograms.constellations, projectionMatrix, modelViewMatrix)
     drawStars(gl, shaderPrograms.stars, projectionMatrix, modelViewMatrix)
-  }, [shaderPrograms, rotation])
+  }, [shaderPrograms, rotation, rotX, rotY])
 
   return (
     <div className="App">
