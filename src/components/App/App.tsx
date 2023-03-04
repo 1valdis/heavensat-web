@@ -1,12 +1,12 @@
 import { mat4, vec3 } from 'gl-matrix'
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
-import { useAnimationFrame } from '../../useAnimationFrame'
 import hipparcosCatalogOriginal from '../../hipparcos_8_concise.json'
 import constellationLineship from '../../constellationLineship.json'
 import { bvToRgb, degreesToRad, raDecToCartesian } from '../../util/celestial'
 import { initShaderProgram } from '../../util/webgl'
 import { starVertexSource, starFragmentSource, lineVertexSource, lineFragmentSource } from './shaders'
+import useResizeObserver from './use-resize-observer'
 
 type HIPStarOriginal = [number, number, number, number, number]
 
@@ -32,7 +32,7 @@ const constellationLines = constellationLineship.map(constellation => constellat
   })
 
 const positions = hipparcosCartesian.map(star => star.coords).flat() as number[]
-const sizes = hipparcosCartesian.map(star => Math.max((5 - star.mag), 1))
+const sizes = hipparcosCartesian.map(star => Math.max((7 - star.mag), 1))
 const colors = hipparcosCartesian.map(star => bvToRgb(star.bv)).flat()
 
 function drawStars (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) {
@@ -152,18 +152,29 @@ function useSphericalPanning (elementRef: RefObject<HTMLCanvasElement>, handleRo
   }, [elementRef, handlePointerDown, handlePointerMove, handlePointerUp])
 }
 
+function useScrollToZoom (elementRef: RefObject<HTMLCanvasElement>, handleZoom: (delta: number) => void) {
+  const handleScroll = useCallback((event: WheelEvent) => {
+    handleZoom(event.deltaY)
+  }, [handleZoom])
+
+  useEffect(() => {
+    if (!elementRef.current) return
+    const element = elementRef.current
+    element.addEventListener('wheel', handleScroll)
+    return () => {
+      element.removeEventListener('wheel', handleScroll)
+    }
+  }, [elementRef, handleScroll])
+}
+
+const fovs = [120, 90, 60, 45, 30, 15, 10, 5, 3, 2, 1]
+
 function App () {
-  const [rotation, setRotation] = useState(0)
   const [{ rotX, rotY }, setRotationAngles] = useState({ rotX: 0, rotY: 0 })
+  const [fovIndex, setFovIndex] = useState(0)
 
   const ref = useRef<HTMLCanvasElement>(null)
   const glRef = useRef<WebGL2RenderingContext>()
-
-  useAnimationFrame(deltaTime => {
-    // Pass on a function to the setter of the state
-    // to make sure we always have the latest state
-    setRotation(prevCount => prevCount + deltaTime * 0.0001)
-  })
 
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
 
@@ -178,7 +189,43 @@ function App () {
   }, [shaderPrograms])
 
   useSphericalPanning(ref, (dx, dy) => {
-    setRotationAngles({ rotX: Math.max(Math.min(rotX + dx, degreesToRad(90)), degreesToRad(-90)), rotY: rotY + dy })
+    setRotationAngles({
+      rotX: Math.max(Math.min(rotX + (dx * fovs[fovIndex]! / 100), degreesToRad(90)), degreesToRad(-90)),
+      rotY: rotY + (dy * (1 / (Math.abs(Math.cos(rotX)) + 0.01)) * fovs[fovIndex]! / 100)
+    })
+  })
+  useScrollToZoom(ref, (delta) => {
+    if (delta >= 0 && fovIndex > 0) {
+      setFovIndex((index) => index - 1)
+    } else if (delta <= 0 && fovIndex < fovs.length) {
+      setFovIndex((index) => index + 1)
+    }
+  })
+  useResizeObserver(ref, (entry) => {
+    if (!glRef.current) return
+    let width
+    let height
+    let dpr = window.devicePixelRatio
+    if (entry.devicePixelContentBoxSize) {
+      // NOTE: Only this path gives the correct answer
+      // The other paths are an imperfect fallback
+      // for browsers that don't provide anyway to do this
+      width = entry.devicePixelContentBoxSize[0]!.inlineSize
+      height = entry.devicePixelContentBoxSize[0]!.blockSize
+      dpr = 1 // it's already in width and height
+    } else if (entry.contentBoxSize) {
+      width = entry.contentBoxSize[0]!.inlineSize
+      height = entry.contentBoxSize[0]!.blockSize
+    } else {
+      // legacy
+      width = entry.contentRect.width
+      height = entry.contentRect.height
+    }
+    const displayWidth = Math.round(width * dpr)
+    const displayHeight = Math.round(height * dpr)
+    glRef.current.canvas.width = displayWidth
+    glRef.current.canvas.height = displayHeight
+    glRef.current.viewport(0, 0, displayWidth, displayHeight)
   })
 
   useEffect(() => {
@@ -188,7 +235,7 @@ function App () {
     gl.clearColor(0, 0, 0, 1)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
-    const fieldOfView = 60 * Math.PI / 180 // in radians
+    const fieldOfView = degreesToRad(fovs[fovIndex]!)
     const aspect = gl.drawingBufferWidth / gl.drawingBufferHeight
     const zNear = 0
     const zFar = 100.0
@@ -204,7 +251,7 @@ function App () {
 
     mat4.translate(modelViewMatrix,
       modelViewMatrix,
-      [0.0, 0.0, -2])
+      [0.0, 0.0, 0.0])
 
     mat4.rotate(modelViewMatrix,
       modelViewMatrix,
@@ -220,11 +267,11 @@ function App () {
 
     drawLines(gl, shaderPrograms.constellations, projectionMatrix, modelViewMatrix)
     drawStars(gl, shaderPrograms.stars, projectionMatrix, modelViewMatrix)
-  }, [shaderPrograms, rotation, rotX, rotY])
+  }, [shaderPrograms, rotX, rotY, fovIndex])
 
   return (
     <div className="App">
-      <canvas ref={ref} width={1000} height={800}></canvas>
+      <canvas id="sky" ref={ref} width={1000} height={800}></canvas>
     </div>
   )
 }
