@@ -7,6 +7,7 @@ import { bvToRgb, degreesToRad, raDecToCartesian } from '../../util/celestial'
 import { initShaderProgram } from '../../util/webgl'
 import { starVertexSource, starFragmentSource, lineVertexSource, lineFragmentSource } from './shaders'
 import useResizeObserver from './use-resize-observer'
+import { useLatest } from './use-latest'
 
 type HIPStarOriginal = [number, number, number, number, number]
 
@@ -167,9 +168,11 @@ function useScrollToZoom (elementRef: RefObject<HTMLCanvasElement>, handleZoom: 
   }, [elementRef, handleScroll])
 }
 
-const fovs = [120, 90, 60, 45, 30, 15, 10, 5, 3, 2, 1]
+const fovs = [120, 90, 60, 45, 30, 15, 10, 5, 3, 2, 1, 0.5]
 
 function App () {
+  const [viewport, setViewport] = useState<{ x: number, y: number }>({ x: window.innerWidth, y: window.innerHeight })
+  const latestViewport = useLatest(viewport).current
   const [{ rotX, rotY }, setRotationAngles] = useState({ rotX: 0, rotY: 0 })
   const [fovIndex, setFovIndex] = useState(0)
 
@@ -189,19 +192,19 @@ function App () {
   }, [shaderPrograms])
 
   useSphericalPanning(ref, (dx, dy) => {
-    setRotationAngles({
-      rotX: Math.max(Math.min(rotX + (dx * fovs[fovIndex]! / 100), degreesToRad(90)), degreesToRad(-90)),
-      rotY: rotY + (dy * (1 / (Math.abs(Math.cos(rotX)) + 0.01)) * fovs[fovIndex]! / 100)
-    })
+    setRotationAngles(({ rotX: oldRotX, rotY: oldRotY }) => ({
+      rotX: Math.max(Math.min(oldRotX + (dx * fovs[fovIndex]! / 100), degreesToRad(90)), degreesToRad(-90)),
+      rotY: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fovs[fovIndex]! / 100)
+    }))
   })
   useScrollToZoom(ref, (delta) => {
     if (delta >= 0 && fovIndex > 0) {
       setFovIndex((index) => index - 1)
-    } else if (delta <= 0 && fovIndex < fovs.length) {
+    } else if (delta <= 0 && fovIndex < fovs.length - 1) {
       setFovIndex((index) => index + 1)
     }
   })
-  useResizeObserver(ref, (entry) => {
+  const observer = useResizeObserver(ref, (entry) => {
     if (!glRef.current) return
     let width
     let height
@@ -223,9 +226,7 @@ function App () {
     }
     const displayWidth = Math.round(width * dpr)
     const displayHeight = Math.round(height * dpr)
-    glRef.current.canvas.width = displayWidth
-    glRef.current.canvas.height = displayHeight
-    glRef.current.viewport(0, 0, displayWidth, displayHeight)
+    setViewport({ x: displayWidth, y: displayHeight })
   })
 
   useEffect(() => {
@@ -236,7 +237,7 @@ function App () {
     gl.clear(gl.COLOR_BUFFER_BIT)
 
     const fieldOfView = degreesToRad(fovs[fovIndex]!)
-    const aspect = gl.drawingBufferWidth / gl.drawingBufferHeight
+    const aspect = viewport.x / viewport.y
     const zNear = 0
     const zFar = 100.0
     const projectionMatrix = mat4.create()
@@ -265,13 +266,19 @@ function App () {
 
     mat4.multiply(modelViewMatrix, modelViewMatrix, newRotationMatrix)
 
+    if (latestViewport.x !== viewport.x || latestViewport.y !== viewport.y) {
+      gl.canvas.width = viewport.x
+      gl.canvas.height = viewport.y
+      gl.viewport(0, 0, viewport.x, viewport.y)
+    }
+
     drawLines(gl, shaderPrograms.constellations, projectionMatrix, modelViewMatrix)
     drawStars(gl, shaderPrograms.stars, projectionMatrix, modelViewMatrix)
-  }, [shaderPrograms, rotX, rotY, fovIndex])
+  }, [shaderPrograms, rotX, rotY, fovIndex, viewport, latestViewport])
 
   return (
     <div className="App">
-      <canvas id="sky" ref={ref} width={1000} height={800}></canvas>
+      <canvas id="sky" ref={ref} width={viewport.x} height={viewport.y}></canvas>
     </div>
   )
 }

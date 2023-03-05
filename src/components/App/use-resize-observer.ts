@@ -1,12 +1,5 @@
-import { useRef, useEffect, useLayoutEffect, RefObject } from 'react'
-
-const useLatest = <T extends any>(current: T) => {
-  const storedValue = useRef(current)
-  useEffect(() => {
-    storedValue.current = current
-  })
-  return storedValue
-}
+import { useLayoutEffect, RefObject } from 'react'
+import { useLatest } from './use-latest'
 
 if (!('ResizeObserver' in window)) {
   alert('Please update your browser to use this app')
