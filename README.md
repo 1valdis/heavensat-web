@@ -6,6 +6,7 @@ An app where hopefully in the future you'll be able to see satellites and their 
 - [ ] Geographically and time wise correct sky
 - [ ] Zooming on mobile
 - [ ] Satellites
-- [ ] Moon
+- [ ] Sun, moon
 - [ ] Planets
+- [ ] Not simply dark but correctly colored sky gradient
 - [ ] Local storage for satellite databases, and persistent settings
