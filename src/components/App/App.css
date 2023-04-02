@@ -18,3 +18,9 @@ html, body {
   background: black;
   touch-action: none;
 }
+
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+}

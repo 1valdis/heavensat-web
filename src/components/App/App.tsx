@@ -3,7 +3,7 @@ import { RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
 import hipparcosCatalogOriginal from '../../hipparcos_8_concise.json'
 import constellationLineship from '../../constellationLineship.json'
-import { bvToRgb, degreesToRad, raDecToCartesian } from '../../util/celestial'
+import { bvToRgb, degreesToRad, getLocalSiderealTime, raDecToCartesian } from '../../util/celestial'
 import { initShaderProgram } from '../../util/webgl'
 import { starVertexSource, starFragmentSource, lineVertexSource, lineFragmentSource } from './shaders'
 import useResizeObserver from './use-resize-observer'
@@ -33,7 +33,7 @@ const constellationLines = constellationLineship.map(constellation => constellat
   })
 
 const positions = hipparcosCartesian.map(star => star.coords).flat() as number[]
-const sizes = hipparcosCartesian.map(star => Math.max((7 - star.mag), 1))
+const sizes = hipparcosCartesian.map(star => Math.max((8 - star.mag) * window.devicePixelRatio, 1))
 const colors = hipparcosCartesian.map(star => bvToRgb(star.bv)).flat()
 
 function drawStars (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) {
@@ -173,8 +173,11 @@ const fovs = [120, 90, 60, 45, 30, 15, 10, 5, 3, 2, 1, 0.5]
 function App () {
   const [viewport, setViewport] = useState<{ x: number, y: number }>({ x: window.innerWidth, y: window.innerHeight })
   const latestViewport = useLatest(viewport).current
-  const [{ rotX, rotY }, setRotationAngles] = useState({ rotX: 0, rotY: 0 })
+  const [panning, setPanning] = useState({ rotX: 0, rotY: 0 })
   const [fovIndex, setFovIndex] = useState(0)
+
+  const [location, setLocation] = useState<{ latitude: number, longitude: number, altitude: number }>({ latitude: 0, longitude: 0, altitude: 0 })
+  const [date, setDate] = useState(new Date())
 
   const ref = useRef<HTMLCanvasElement>(null)
   const glRef = useRef<WebGL2RenderingContext>()
@@ -192,9 +195,9 @@ function App () {
   }, [shaderPrograms])
 
   useSphericalPanning(ref, (dx, dy) => {
-    setRotationAngles(({ rotX: oldRotX, rotY: oldRotY }) => ({
-      rotX: Math.max(Math.min(oldRotX + (dx * fovs[fovIndex]! / 100), degreesToRad(90)), degreesToRad(-90)),
-      rotY: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fovs[fovIndex]! / 100)
+    setPanning(({ rotX: oldRotX, rotY: oldRotY }) => ({
+      rotX: Math.max(Math.min(oldRotX + ((dx * fovs[fovIndex]! / 100)) * window.devicePixelRatio, degreesToRad(90)), degreesToRad(-90)),
+      rotY: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fovs[fovIndex]! / 100) * window.devicePixelRatio
     }))
   })
   useScrollToZoom(ref, (delta) => {
@@ -236,35 +239,33 @@ function App () {
     gl.clearColor(0, 0, 0, 1)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
-    const fieldOfView = degreesToRad(fovs[fovIndex]!)
-    const aspect = viewport.x / viewport.y
-    const zNear = 0
-    const zFar = 100.0
     const projectionMatrix = mat4.create()
 
     mat4.perspective(projectionMatrix,
-      fieldOfView,
-      aspect,
-      zNear,
-      zFar)
+      degreesToRad(fovs[fovIndex]!),
+      viewport.x / viewport.y,
+      0,
+      100)
 
-    const modelViewMatrix = mat4.create()
+    const viewMatrix = mat4.create()
+    mat4.identity(viewMatrix)
 
-    mat4.translate(modelViewMatrix,
-      modelViewMatrix,
-      [0.0, 0.0, 0.0])
+    mat4.rotate(viewMatrix, viewMatrix, degreesToRad(-90), [1, 0, 0])
 
-    mat4.rotate(modelViewMatrix,
-      modelViewMatrix,
-      degreesToRad(-90),
-      [1, 0, 0])
+    const latitudeRadians = location.latitude * (Math.PI / 180)
+    const tiltMatrix = mat4.create()
+    const lstRadians = getLocalSiderealTime(date, location.longitude) + degreesToRad(90)
+    mat4.rotateX(tiltMatrix, tiltMatrix, latitudeRadians)
+    mat4.rotateY(tiltMatrix, tiltMatrix, -lstRadians)
 
-    const newRotationMatrix = mat4.create()
-    mat4.rotateZ(newRotationMatrix, newRotationMatrix, rotY)
-    mat4.rotateX(newRotationMatrix, newRotationMatrix, rotX)
-    mat4.invert(newRotationMatrix, newRotationMatrix)
+    const panningMatrix = mat4.create()
+    mat4.identity(panningMatrix)
+    mat4.rotateY(panningMatrix, panningMatrix, panning.rotY)
+    mat4.rotateX(panningMatrix, panningMatrix, panning.rotX)
+    mat4.invert(panningMatrix, panningMatrix)
 
-    mat4.multiply(modelViewMatrix, modelViewMatrix, newRotationMatrix)
+    mat4.multiply(viewMatrix, tiltMatrix, viewMatrix)
+    mat4.multiply(viewMatrix, panningMatrix, viewMatrix)
 
     if (latestViewport.x !== viewport.x || latestViewport.y !== viewport.y) {
       gl.canvas.width = viewport.x
@@ -272,13 +273,17 @@ function App () {
       gl.viewport(0, 0, viewport.x, viewport.y)
     }
 
-    drawLines(gl, shaderPrograms.constellations, projectionMatrix, modelViewMatrix)
-    drawStars(gl, shaderPrograms.stars, projectionMatrix, modelViewMatrix)
-  }, [shaderPrograms, rotX, rotY, fovIndex, viewport, latestViewport])
+    drawLines(gl, shaderPrograms.constellations, projectionMatrix, viewMatrix)
+    drawStars(gl, shaderPrograms.stars, projectionMatrix, viewMatrix)
+  }, [shaderPrograms, panning, fovIndex, viewport, latestViewport, location, date])
 
   return (
     <div className="App">
       <canvas id="sky" ref={ref} width={viewport.x} height={viewport.y}></canvas>
+      <nav>
+        <button onClick={() => setDate((date) => { const newDate = new Date(date); newDate.setTime(newDate.getTime() + (60 * 60 * 1000)); return newDate })}>+1 hour</button>
+        <button onClick={ () => navigator.geolocation.getCurrentPosition((position) => setLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, altitude: position.coords.altitude ?? 0 })) }>Locate</button>
+      </nav>
     </div>
   )
 }
