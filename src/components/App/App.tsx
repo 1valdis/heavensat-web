@@ -168,13 +168,15 @@ function useScrollToZoom (elementRef: RefObject<HTMLCanvasElement>, handleZoom: 
   }, [elementRef, handleScroll])
 }
 
-const fovs = [120, 90, 60, 45, 30, 15, 10, 5, 3, 2, 1, 0.5]
+const maxFov = 120
+const minFov = 0.5
+const zoomSensitivity = 0.3
 
 function App () {
   const [viewport, setViewport] = useState<{ x: number, y: number }>({ x: window.innerWidth, y: window.innerHeight })
   const latestViewport = useLatest(viewport).current
   const [panning, setPanning] = useState({ rotX: 0, rotY: 0 })
-  const [fovIndex, setFovIndex] = useState(0)
+  const [fov, setFov] = useState(90)
 
   const [location, setLocation] = useState<{ latitude: number, longitude: number, altitude: number }>({ latitude: 0, longitude: 0, altitude: 0 })
   const [date, setDate] = useState(new Date())
@@ -190,22 +192,22 @@ function App () {
     if (!shaderPrograms) {
       setShaderPrograms(setupShaderPrograms(glRef.current))
     }
-    // no cleanup of shader programs since they are set up only once
     return () => Object.values(shaderPrograms ?? {}).forEach(program => gl.deleteProgram(program))
   }, [shaderPrograms])
 
   useSphericalPanning(ref, (dx, dy) => {
     setPanning(({ rotX: oldRotX, rotY: oldRotY }) => ({
-      rotX: Math.max(Math.min(oldRotX + ((dx * fovs[fovIndex]! / 100)) * window.devicePixelRatio, degreesToRad(90)), degreesToRad(-90)),
-      rotY: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fovs[fovIndex]! / 100) * window.devicePixelRatio
+      rotX: Math.max(Math.min(oldRotX + ((dx * fov / 100)) * window.devicePixelRatio, degreesToRad(90)), degreesToRad(-90)),
+      rotY: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fov / 100) * window.devicePixelRatio
     }))
   })
   useScrollToZoom(ref, (delta) => {
-    if (delta >= 0 && fovIndex > 0) {
-      setFovIndex((index) => index - 1)
-    } else if (delta <= 0 && fovIndex < fovs.length - 1) {
-      setFovIndex((index) => index + 1)
-    }
+    setFov((fov) => {
+      const newFov = fov + (zoomSensitivity * fov * (Math.abs(delta) / delta))
+      const change = zoomSensitivity * fov
+      console.log(change)
+      return Math.max(minFov, Math.min(newFov, maxFov))
+    })
   })
   const observer = useResizeObserver(ref, (entry) => {
     if (!glRef.current) return
@@ -242,7 +244,7 @@ function App () {
     const projectionMatrix = mat4.create()
 
     mat4.perspective(projectionMatrix,
-      degreesToRad(fovs[fovIndex]!),
+      degreesToRad(fov),
       viewport.x / viewport.y,
       0,
       100)
@@ -275,7 +277,7 @@ function App () {
 
     drawLines(gl, shaderPrograms.constellations, projectionMatrix, viewMatrix)
     drawStars(gl, shaderPrograms.stars, projectionMatrix, viewMatrix)
-  }, [shaderPrograms, panning, fovIndex, viewport, latestViewport, location, date])
+  }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date])
 
   return (
     <div className="App">
