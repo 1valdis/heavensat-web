@@ -112,51 +112,50 @@ function setupShaderPrograms (gl: WebGL2RenderingContext): ShaderProgramsMap {
   }
 }
 
-function useSphericalPanning (elementRef: RefObject<HTMLCanvasElement>, handleRotation: (deltaX: number, deltaY: number) => void) {
-  const [panning, setPanning] = useState(false)
-  // const [previousPoint, setPreviousPoint] = useState<{x: number, y: number} | null>(null)
+function distance (deltaX: number, deltaY: number) {
+  return Math.sqrt(deltaX ** 2 + deltaY ** 2)
+}
 
-  const handlePointerDown = useCallback(() => {
-    setPanning(true)
+function useCameraControls (elementRef: RefObject<HTMLCanvasElement>, options: {
+  setRotation: (deltaX: number, deltaY: number) => void,
+  changeZoom: (delta: number) => void
+  multiplyZoom: (ratio: number) => void
+}) {
+  const { setRotation, changeZoom, multiplyZoom } = options
+  const pointersDownRef = useRef(new Map<number, PointerEvent>())
+
+  const handleScroll = useCallback((event: WheelEvent) => {
+    changeZoom(event.deltaY)
+  }, [changeZoom])
+
+  const handlePointerDown = useCallback((event: PointerEvent) => {
+    pointersDownRef.current.set(event.pointerId, event)
   }, [])
 
-  const handlePointerUp = useCallback(() => {
-    setPanning(false)
+  const handlePointerUp = useCallback((event: PointerEvent) => {
+    pointersDownRef.current.delete(event.pointerId)
   }, [])
 
   const handlePointerMove = useCallback((event: PointerEvent) => {
-    if (panning && elementRef.current) {
-      const dx = event.movementX
-      const dy = event.movementY
+    if (event.buttons & 1) {
+      pointersDownRef.current.set(event.pointerId, event)
+    }
+    const pointersDown = Array.from(pointersDownRef.current.values())
+    if (pointersDown.length === 2) {
+      const otherEvent = pointersDown.find(cachedEvent => cachedEvent.pointerId !== event.pointerId)!
+      const newDistance = distance(otherEvent.clientX - event.clientX, otherEvent.clientY - event.clientY)
+      const oldDistance = distance(otherEvent.clientX - event.clientX - event.movementX, otherEvent.clientY - event.clientY - event.movementX)
+      multiplyZoom(oldDistance / newDistance)
+    }
+    if (pointersDown.length > 0 && elementRef.current) {
+      const dx = event.movementX / pointersDown.length
+      const dy = event.movementY / pointersDown.length
       const maxCanvasSize = Math.max(elementRef.current.width, elementRef.current.height)
       const rotationX = dy * Math.PI / maxCanvasSize
       const rotationY = dx * Math.PI / maxCanvasSize
-      handleRotation(rotationX, rotationY)
+      setRotation(rotationX, rotationY)
     }
-  }, [handleRotation, elementRef, panning])
-
-  useEffect(() => {
-    if (!elementRef.current) return
-    const element = elementRef.current
-    element.addEventListener('pointerdown', handlePointerDown)
-    element.addEventListener('pointerleave', handlePointerUp)
-    element.addEventListener('pointercancel', handlePointerUp)
-    element.addEventListener('pointerup', handlePointerUp)
-    element.addEventListener('pointermove', handlePointerMove)
-    return () => {
-      element.removeEventListener('pointerdown', handlePointerDown)
-      element.removeEventListener('pointerleave', handlePointerUp)
-      element.removeEventListener('pointercancel', handlePointerUp)
-      element.removeEventListener('pointerup', handlePointerUp)
-      element.removeEventListener('pointermove', handlePointerMove)
-    }
-  }, [elementRef, handlePointerDown, handlePointerMove, handlePointerUp])
-}
-
-function useScrollToZoom (elementRef: RefObject<HTMLCanvasElement>, handleZoom: (delta: number) => void) {
-  const handleScroll = useCallback((event: WheelEvent) => {
-    handleZoom(event.deltaY)
-  }, [handleZoom])
+  }, [elementRef, multiplyZoom, setRotation])
 
   useEffect(() => {
     if (!elementRef.current) return
@@ -166,6 +165,30 @@ function useScrollToZoom (elementRef: RefObject<HTMLCanvasElement>, handleZoom: 
       element.removeEventListener('wheel', handleScroll)
     }
   }, [elementRef, handleScroll])
+
+  useEffect(() => {
+    if (!elementRef.current) return
+    const element = elementRef.current
+    element.addEventListener('pointerdown', handlePointerDown)
+    element.addEventListener('pointerleave', handlePointerUp)
+    element.addEventListener('pointercancel', handlePointerUp)
+    element.addEventListener('pointerup', handlePointerUp)
+    return () => {
+      element.removeEventListener('pointerdown', handlePointerDown)
+      element.removeEventListener('pointerleave', handlePointerUp)
+      element.removeEventListener('pointercancel', handlePointerUp)
+      element.removeEventListener('pointerup', handlePointerUp)
+    }
+  }, [elementRef, handlePointerDown, handlePointerUp])
+
+  useEffect(() => {
+    if (!elementRef.current) return
+    const element = elementRef.current
+    element.addEventListener('pointermove', handlePointerMove)
+    return () => {
+      element.removeEventListener('pointermove', handlePointerMove)
+    }
+  }, [elementRef, handlePointerMove])
 }
 
 const maxFov = 120
@@ -195,20 +218,26 @@ function App () {
     return () => Object.values(shaderPrograms ?? {}).forEach(program => gl.deleteProgram(program))
   }, [shaderPrograms])
 
-  useSphericalPanning(ref, (dx, dy) => {
-    setPanning(({ rotX: oldRotX, rotY: oldRotY }) => ({
-      rotX: Math.max(Math.min(oldRotX + ((dx * fov / 100)) * window.devicePixelRatio, degreesToRad(90)), degreesToRad(-90)),
-      rotY: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fov / 100) * window.devicePixelRatio
-    }))
+  useCameraControls(ref, {
+    setRotation: (dx, dy) => {
+      setPanning(({ rotX: oldRotX, rotY: oldRotY }) => ({
+        rotX: Math.max(Math.min(oldRotX + ((dx * fov / 100)) * window.devicePixelRatio, degreesToRad(90)), degreesToRad(-90)),
+        rotY: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fov / 100) * window.devicePixelRatio
+      }))
+    },
+    changeZoom: (delta) => {
+      setFov((fov) => {
+        const newFov = fov + (zoomSensitivity * fov * (Math.abs(delta) / delta))
+        return Math.max(minFov, Math.min(newFov, maxFov))
+      })
+    },
+    multiplyZoom: (ratio) => {
+      setFov((fov) => {
+        return Math.max(minFov, Math.min(fov * (((ratio - 1) * devicePixelRatio) + 1), maxFov))
+      })
+    }
   })
-  useScrollToZoom(ref, (delta) => {
-    setFov((fov) => {
-      const newFov = fov + (zoomSensitivity * fov * (Math.abs(delta) / delta))
-      const change = zoomSensitivity * fov
-      console.log(change)
-      return Math.max(minFov, Math.min(newFov, maxFov))
-    })
-  })
+
   const observer = useResizeObserver(ref, (entry) => {
     if (!glRef.current) return
     let width
