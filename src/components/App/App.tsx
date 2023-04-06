@@ -83,7 +83,7 @@ function drawLines (gl: WebGL2RenderingContext, program: WebGLProgram, projectio
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
-  gl.lineWidth(0.5)
+  gl.lineWidth(1)
 
   const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
   gl.uniformMatrix4fv(
@@ -144,7 +144,7 @@ function useCameraControls (elementRef: RefObject<HTMLCanvasElement>, options: {
     if (pointersDown.length === 2) {
       const otherEvent = pointersDown.find(cachedEvent => cachedEvent.pointerId !== event.pointerId)!
       const newDistance = distance(otherEvent.clientX - event.clientX, otherEvent.clientY - event.clientY)
-      const oldDistance = distance(otherEvent.clientX - event.clientX - event.movementX, otherEvent.clientY - event.clientY - event.movementX)
+      const oldDistance = distance(otherEvent.clientX - event.clientX + event.movementX, otherEvent.clientY - event.clientY + event.movementY)
       multiplyZoom(oldDistance / newDistance)
     }
     if (pointersDown.length > 0 && elementRef.current) {
@@ -233,7 +233,7 @@ function App () {
     },
     multiplyZoom: (ratio) => {
       setFov((fov) => {
-        return Math.max(minFov, Math.min(fov * (((ratio - 1) * devicePixelRatio) + 1), maxFov))
+        return Math.max(minFov, Math.min(fov * ratio, maxFov))
       })
     }
   })
