@@ -1,207 +1,23 @@
-import { mat4, vec3 } from 'gl-matrix'
-import { RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
-import hipparcosCatalogOriginal from '../../hipparcos_8_concise.json'
-import constellationLineship from '../../constellationLineship.json'
-import { bvToRgb, degreesToRad, getLocalSiderealTime, raDecToCartesian } from '../../util/celestial'
-import { initShaderProgram } from '../../util/webgl'
-import { starVertexSource, starFragmentSource, lineVertexSource, lineFragmentSource } from './shaders'
+import { degreesToRad } from '../../util/celestial'
 import useResizeObserver from './use-resize-observer'
 import { useLatest } from './use-latest'
-
-type HIPStarOriginal = [number, number, number, number, number]
-
-type HIPStar = {
-  id: number,
-  coords: vec3,
-  bv: number,
-  mag: number
-}
-
-const hipparcosCartesian: HIPStar[] = (hipparcosCatalogOriginal as HIPStarOriginal[]).map((item) => ({
-  id: item[0],
-  mag: item[1],
-  coords: raDecToCartesian(degreesToRad(item[2]), degreesToRad(item[3])),
-  bv: item[4]
-}))
-
-const constellationLines = constellationLineship.map(constellation => constellation.slice(2))
-  .flat().map(hipIndex => {
-    const star = hipparcosCartesian.find(item => item.id === hipIndex)
-    if (!star) throw new Error(`No star with id ${hipIndex}`)
-    return star.coords
-  })
-
-const positions = hipparcosCartesian.map(star => star.coords).flat() as number[]
-const sizes = hipparcosCartesian.map(star => Math.max((8 - star.mag) * window.devicePixelRatio, 1))
-const colors = hipparcosCartesian.map(star => bvToRgb(star.bv)).flat()
-
-function drawStars (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) {
-  gl.useProgram(program)
-
-  const positionBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW)
-  const positionLocation = gl.getAttribLocation(program, 'a_position')
-  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
-  gl.enableVertexAttribArray(positionLocation)
-
-  const sizeBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sizes), gl.STATIC_DRAW)
-  const sizeLocation = gl.getAttribLocation(program, 'a_size')
-  gl.vertexAttribPointer(sizeLocation, 1, gl.FLOAT, false, 0, 0)
-  gl.enableVertexAttribArray(sizeLocation)
-
-  const colorBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW)
-  const colorLocation = gl.getAttribLocation(program, 'a_color')
-  gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0)
-  gl.enableVertexAttribArray(colorLocation)
-
-  const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
-  gl.uniformMatrix4fv(
-    projectionLocation,
-    false,
-    projectionMatrix)
-
-  const modelViewLocation = gl.getUniformLocation(program, 'u_modelViewMatrix')
-  gl.uniformMatrix4fv(
-    modelViewLocation,
-    false,
-    modelViewMatrix)
-  gl.drawArrays(gl.POINTS, 0, hipparcosCartesian.length)
-}
-
-function drawLines (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) {
-  gl.useProgram(program)
-
-  const positionBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(constellationLines.flat() as number[]), gl.STATIC_DRAW)
-  const positionLocation = gl.getAttribLocation(program, 'a_position')
-  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
-  gl.enableVertexAttribArray(positionLocation)
-  gl.lineWidth(1)
-
-  const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
-  gl.uniformMatrix4fv(
-    projectionLocation,
-    false,
-    projectionMatrix)
-
-  const modelViewLocation = gl.getUniformLocation(program, 'u_modelViewMatrix')
-  gl.uniformMatrix4fv(
-    modelViewLocation,
-    false,
-    modelViewMatrix)
-
-  gl.drawArrays(gl.LINES, 0, constellationLines.length)
-}
-
-type ShaderProgramsMap = {
-  stars: WebGLProgram,
-  constellations: WebGLProgram
-}
-
-function setupShaderPrograms (gl: WebGL2RenderingContext): ShaderProgramsMap {
-  return {
-    stars: initShaderProgram(gl, starVertexSource, starFragmentSource),
-    constellations: initShaderProgram(gl, lineVertexSource, lineFragmentSource)
-  }
-}
-
-function distance (deltaX: number, deltaY: number) {
-  return Math.sqrt(deltaX ** 2 + deltaY ** 2)
-}
-
-function useCameraControls (elementRef: RefObject<HTMLCanvasElement>, options: {
-  setRotation: (deltaX: number, deltaY: number) => void,
-  changeZoom: (delta: number) => void
-  multiplyZoom: (ratio: number) => void
-}) {
-  const { setRotation, changeZoom, multiplyZoom } = options
-  const pointersDownRef = useRef(new Map<number, PointerEvent>())
-
-  const handleScroll = useCallback((event: WheelEvent) => {
-    changeZoom(event.deltaY)
-  }, [changeZoom])
-
-  const handlePointerDown = useCallback((event: PointerEvent) => {
-    pointersDownRef.current.set(event.pointerId, event)
-  }, [])
-
-  const handlePointerUp = useCallback((event: PointerEvent) => {
-    pointersDownRef.current.delete(event.pointerId)
-  }, [])
-
-  const handlePointerMove = useCallback((event: PointerEvent) => {
-    if (event.buttons & 1) {
-      pointersDownRef.current.set(event.pointerId, event)
-    }
-    const pointersDown = Array.from(pointersDownRef.current.values())
-    if (pointersDown.length === 2) {
-      const otherEvent = pointersDown.find(cachedEvent => cachedEvent.pointerId !== event.pointerId)!
-      const newDistance = distance(otherEvent.clientX - event.clientX, otherEvent.clientY - event.clientY)
-      const oldDistance = distance(otherEvent.clientX - event.clientX + event.movementX, otherEvent.clientY - event.clientY + event.movementY)
-      multiplyZoom(oldDistance / newDistance)
-    }
-    if (pointersDown.length > 0 && elementRef.current) {
-      const dx = event.movementX / pointersDown.length
-      const dy = event.movementY / pointersDown.length
-      const maxCanvasSize = Math.max(elementRef.current.width, elementRef.current.height)
-      const rotationX = dy * Math.PI / maxCanvasSize
-      const rotationY = dx * Math.PI / maxCanvasSize
-      setRotation(rotationX, rotationY)
-    }
-  }, [elementRef, multiplyZoom, setRotation])
-
-  useEffect(() => {
-    if (!elementRef.current) return
-    const element = elementRef.current
-    element.addEventListener('wheel', handleScroll)
-    return () => {
-      element.removeEventListener('wheel', handleScroll)
-    }
-  }, [elementRef, handleScroll])
-
-  useEffect(() => {
-    if (!elementRef.current) return
-    const element = elementRef.current
-    element.addEventListener('pointerdown', handlePointerDown)
-    element.addEventListener('pointerleave', handlePointerUp)
-    element.addEventListener('pointercancel', handlePointerUp)
-    element.addEventListener('pointerup', handlePointerUp)
-    return () => {
-      element.removeEventListener('pointerdown', handlePointerDown)
-      element.removeEventListener('pointerleave', handlePointerUp)
-      element.removeEventListener('pointercancel', handlePointerUp)
-      element.removeEventListener('pointerup', handlePointerUp)
-    }
-  }, [elementRef, handlePointerDown, handlePointerUp])
-
-  useEffect(() => {
-    if (!elementRef.current) return
-    const element = elementRef.current
-    element.addEventListener('pointermove', handlePointerMove)
-    return () => {
-      element.removeEventListener('pointermove', handlePointerMove)
-    }
-  }, [elementRef, handlePointerMove])
-}
+import { useCameraControls } from './use-camera-controls'
+import { drawScene, Location, Panning, setupShaderPrograms, ShaderProgramsMap, Viewport } from './scene'
+import { Menu } from '../Ui/Menu'
 
 const maxFov = 120
 const minFov = 0.5
 const zoomSensitivity = 0.3
 
 function App () {
-  const [viewport, setViewport] = useState<{ x: number, y: number }>({ x: window.innerWidth, y: window.innerHeight })
+  const [viewport, setViewport] = useState<Viewport>({ x: window.innerWidth, y: window.innerHeight })
   const latestViewport = useLatest(viewport).current
-  const [panning, setPanning] = useState({ rotX: 0, rotY: 0 })
+  const [panning, setPanning] = useState<Panning>({ x: 0, y: 0 })
   const [fov, setFov] = useState(90)
 
-  const [location, setLocation] = useState<{ latitude: number, longitude: number, altitude: number }>({ latitude: 0, longitude: 0, altitude: 0 })
+  const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0 })
   const [date, setDate] = useState(new Date())
 
   const ref = useRef<HTMLCanvasElement>(null)
@@ -218,27 +34,31 @@ function App () {
     return () => Object.values(shaderPrograms ?? {}).forEach(program => gl.deleteProgram(program))
   }, [shaderPrograms])
 
+  const updatePanning = useCallback((dx: number, dy: number) => {
+    setPanning(({ x: oldRotX, y: oldRotY }) => ({
+      x: Math.max(Math.min(oldRotX + ((dx * fov / 100)) * window.devicePixelRatio, degreesToRad(90)), degreesToRad(-90)),
+      y: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fov / 100) * window.devicePixelRatio
+    }))
+  }, [fov])
+  const updateZoomByDelta = useCallback((delta: number) => {
+    setFov((fov) => {
+      const newFov = fov + (zoomSensitivity * fov * (Math.abs(delta) / delta))
+      return Math.max(minFov, Math.min(newFov, maxFov))
+    })
+  }, [])
+  const updateZoomByRatio = useCallback((ratio: number) => {
+    setFov((fov) => {
+      return Math.max(minFov, Math.min(fov * ratio, maxFov))
+    })
+  }, [])
+
   useCameraControls(ref, {
-    setRotation: (dx, dy) => {
-      setPanning(({ rotX: oldRotX, rotY: oldRotY }) => ({
-        rotX: Math.max(Math.min(oldRotX + ((dx * fov / 100)) * window.devicePixelRatio, degreesToRad(90)), degreesToRad(-90)),
-        rotY: oldRotY + (dy * (1 / (Math.abs(Math.cos(oldRotX)) + 0.01)) * fov / 100) * window.devicePixelRatio
-      }))
-    },
-    changeZoom: (delta) => {
-      setFov((fov) => {
-        const newFov = fov + (zoomSensitivity * fov * (Math.abs(delta) / delta))
-        return Math.max(minFov, Math.min(newFov, maxFov))
-      })
-    },
-    multiplyZoom: (ratio) => {
-      setFov((fov) => {
-        return Math.max(minFov, Math.min(fov * ratio, maxFov))
-      })
-    }
+    setRotation: updatePanning,
+    changeZoom: updateZoomByDelta,
+    multiplyZoom: updateZoomByRatio
   })
 
-  const observer = useResizeObserver(ref, (entry) => {
+  useResizeObserver(ref, (entry) => {
     if (!glRef.current) return
     let width
     let height
@@ -266,55 +86,30 @@ function App () {
   useEffect(() => {
     const gl = glRef.current
     if (!gl || !shaderPrograms) return
-
-    gl.clearColor(0, 0, 0, 1)
-    gl.clear(gl.COLOR_BUFFER_BIT)
-
-    const projectionMatrix = mat4.create()
-
-    mat4.perspective(projectionMatrix,
-      degreesToRad(fov),
-      viewport.x / viewport.y,
-      0,
-      100)
-
-    const viewMatrix = mat4.create()
-    mat4.identity(viewMatrix)
-
-    mat4.rotate(viewMatrix, viewMatrix, degreesToRad(-90), [1, 0, 0])
-
-    const latitudeRadians = location.latitude * (Math.PI / 180)
-    const tiltMatrix = mat4.create()
-    const lstRadians = getLocalSiderealTime(date, location.longitude) + degreesToRad(90)
-    mat4.rotateX(tiltMatrix, tiltMatrix, latitudeRadians)
-    mat4.rotateY(tiltMatrix, tiltMatrix, -lstRadians)
-
-    const panningMatrix = mat4.create()
-    mat4.identity(panningMatrix)
-    mat4.rotateY(panningMatrix, panningMatrix, panning.rotY)
-    mat4.rotateX(panningMatrix, panningMatrix, panning.rotX)
-    mat4.invert(panningMatrix, panningMatrix)
-
-    mat4.multiply(viewMatrix, tiltMatrix, viewMatrix)
-    mat4.multiply(viewMatrix, panningMatrix, viewMatrix)
-
     if (latestViewport.x !== viewport.x || latestViewport.y !== viewport.y) {
       gl.canvas.width = viewport.x
       gl.canvas.height = viewport.y
       gl.viewport(0, 0, viewport.x, viewport.y)
     }
-
-    drawLines(gl, shaderPrograms.constellations, projectionMatrix, viewMatrix)
-    drawStars(gl, shaderPrograms.stars, projectionMatrix, viewMatrix)
+    drawScene({
+      gl,
+      shaderPrograms,
+      viewport,
+      fov,
+      location,
+      date,
+      panning
+    })
   }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date])
 
   return (
     <div className="App">
       <canvas id="sky" ref={ref} width={viewport.x} height={viewport.y}></canvas>
-      <nav>
-        <button onClick={() => setDate((date) => { const newDate = new Date(date); newDate.setTime(newDate.getTime() + (60 * 60 * 1000)); return newDate })}>+1 hour</button>
-        <button onClick={ () => navigator.geolocation.getCurrentPosition((position) => setLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, altitude: position.coords.altitude ?? 0 })) }>Locate</button>
-      </nav>
+      <Menu
+        date={date}
+        setDate={setDate}
+        setLocation={setLocation}
+        />
     </div>
   )
 }

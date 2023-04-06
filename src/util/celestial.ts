@@ -41,7 +41,10 @@ export function raDecToCartesian (ra: number, dec: number): [number, number, num
   const y = Math.sin(theta) * Math.sin(phi)
   const z = Math.cos(theta)
 
-  return [x, y, z]
+  // x y z would require
+  // mat4.rotate(viewMatrix, viewMatrix, degreesToRad(-90), [1, 0, 0])
+  // and lstRadians + degreesToRad(90)
+  return [y, z, x]
 }
 
 export function getLocalSiderealTime (date: Date, longitude: number): number {
