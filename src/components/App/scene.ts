@@ -1,9 +1,9 @@
-import { mat4, vec3 } from 'gl-matrix'
+import { mat4 } from 'gl-matrix'
 import hipparcosCatalogOriginal from '../../hipparcos_8_concise.json'
 import constellationLineship from '../../constellationLineship.json'
 import { bvToRgb, degreesToRad, getLocalSiderealTime, raDecToCartesian } from '../../util/celestial'
 import { initShaderProgram } from '../../util/webgl'
-import { lineFragmentSource, lineVertexSource, starFragmentSource, starVertexSource } from './shaders'
+import { groundFragmentSource, groundVertexSource, lineFragmentSource, lineVertexSource, starFragmentSource, starVertexSource } from './shaders'
 
 type HIPStarOriginal = [number, number, number, number, number]
 
@@ -17,6 +17,7 @@ type HIPStar = {
 export type ShaderProgramsMap = {
   stars: WebGLProgram,
   constellations: WebGLProgram,
+  ground: WebGLProgram,
 }
 
 export type Viewport = {x: number, y: number}
@@ -47,7 +48,8 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsM
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
   return {
     stars: initShaderProgram(gl, starVertexSource, starFragmentSource),
-    constellations: initShaderProgram(gl, lineVertexSource, lineFragmentSource)
+    constellations: initShaderProgram(gl, lineVertexSource, lineFragmentSource),
+    ground: initShaderProgram(gl, groundVertexSource, groundFragmentSource)
   }
 }
 
@@ -114,6 +116,36 @@ const drawLines = (gl: WebGL2RenderingContext, program: WebGLProgram, projection
   gl.drawArrays(gl.LINES, 0, constellationLines.length)
 }
 
+const drawGround = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+  gl.useProgram(program)
+
+  const positionBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1, -0.01, -1,
+    1, -0.01, -1,
+    1, -0.01, 1,
+    -1, -0.01, 1
+  ]), gl.STATIC_DRAW)
+  const positionLocation = gl.getAttribLocation(program, 'a_position')
+  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(positionLocation)
+
+  const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
+  gl.uniformMatrix4fv(
+    projectionLocation,
+    false,
+    projectionMatrix)
+
+  const modelViewLocation = gl.getUniformLocation(program, 'u_modelViewMatrix')
+  gl.uniformMatrix4fv(
+    modelViewLocation,
+    false,
+    modelViewMatrix)
+
+  gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
+}
+
 export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date }: {
   gl: WebGL2RenderingContext;
   shaderPrograms: ShaderProgramsMap;
@@ -133,7 +165,7 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
     0,
     100)
 
-  const viewMatrix = mat4.create()
+  const skyViewMatrix = mat4.create()
 
   const latitudeRadians = location.latitude * (Math.PI / 180)
   const tiltMatrix = mat4.create()
@@ -147,9 +179,13 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   mat4.rotateX(panningMatrix, panningMatrix, panning.x)
   mat4.invert(panningMatrix, panningMatrix)
 
-  mat4.multiply(viewMatrix, tiltMatrix, viewMatrix)
-  mat4.multiply(viewMatrix, panningMatrix, viewMatrix)
+  mat4.multiply(skyViewMatrix, tiltMatrix, skyViewMatrix)
+  mat4.multiply(skyViewMatrix, panningMatrix, skyViewMatrix)
 
-  drawLines(gl, shaderPrograms.constellations, projectionMatrix, viewMatrix)
-  drawStars(gl, shaderPrograms.stars, projectionMatrix, viewMatrix)
+  const groundViewMatrix = mat4.create()
+  mat4.multiply(groundViewMatrix, panningMatrix, groundViewMatrix)
+
+  drawLines(gl, shaderPrograms.constellations, projectionMatrix, skyViewMatrix)
+  drawStars(gl, shaderPrograms.stars, projectionMatrix, skyViewMatrix)
+  drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
 }

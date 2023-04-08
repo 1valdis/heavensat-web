@@ -56,3 +56,25 @@ export const lineFragmentSource = `#version 300 es
     lineColor = vec4(0.7, 0.7, 0.7, 1.0);
   }
 `
+
+export const groundVertexSource = `#version 300 es
+  precision highp float;
+  in vec4 a_position;
+
+  uniform mat4 u_projectionMatrix;
+  uniform mat4 u_modelViewMatrix;
+
+  void main() {
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
+  }
+`
+
+export const groundFragmentSource = `#version 300 es
+  precision highp float;
+  out vec4 groundColor;
+
+  void main() {
+    groundColor = vec4(0.1, 0.1, 0.1, 1.0);
+  }
+`
+
