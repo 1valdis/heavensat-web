@@ -74,7 +74,7 @@ export const groundFragmentSource = `#version 300 es
   out vec4 groundColor;
 
   void main() {
-    groundColor = vec4(0.1, 0.1, 0.1, 1.0);
+    groundColor = vec4(0.1, 0.1, 0.1, 0.8);
   }
 `
 
