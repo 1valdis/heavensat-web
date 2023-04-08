@@ -38,10 +38,13 @@ const constellationLines = constellationLineship.map(constellation => constellat
   })
 
 const positions = hipparcosCartesian.map(star => star.coords).flat() as number[]
-const sizes = hipparcosCartesian.map(star => Math.max((8 - star.mag) * window.devicePixelRatio, 1))
+const sizes = hipparcosCartesian.map(star => Math.max((9 - star.mag) * window.devicePixelRatio, 2))
 const colors = hipparcosCartesian.map(star => bvToRgb(star.bv)).flat()
 
 export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsMap => {
+  gl.clearColor(0, 0, 0, 1)
+  gl.enable(gl.BLEND)
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
   return {
     stars: initShaderProgram(gl, starVertexSource, starFragmentSource),
     constellations: initShaderProgram(gl, lineVertexSource, lineFragmentSource)
@@ -95,7 +98,6 @@ const drawLines = (gl: WebGL2RenderingContext, program: WebGLProgram, projection
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
-  gl.lineWidth(1)
 
   const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
   gl.uniformMatrix4fv(
@@ -121,7 +123,6 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   date: Date
   panning: Panning;
 }) => {
-  gl.clearColor(0, 0, 0, 1)
   gl.clear(gl.COLOR_BUFFER_BIT)
 
   const projectionMatrix = mat4.create()
