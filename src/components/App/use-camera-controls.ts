@@ -29,10 +29,10 @@ export const useCameraControls = (elementRef: RefObject<HTMLCanvasElement>, opti
       pointersDownRef.current.set(event.pointerId, event)
     }
     const pointersDown = Array.from(pointersDownRef.current.values())
-    if (pointersDown.length === 2) {
+    if (pointersDown.length >= 2) {
       const otherEvent = pointersDown.find(cachedEvent => cachedEvent.pointerId !== event.pointerId)!
-      const newDistance = distance(otherEvent.clientX - event.clientX, otherEvent.clientY - event.clientY)
-      const oldDistance = distance(otherEvent.clientX - event.clientX + event.movementX, otherEvent.clientY - event.clientY + event.movementY)
+      const newDistance = distance(otherEvent.clientX - event.clientX, otherEvent.clientY - event.clientY) / pointersDown.length - 1
+      const oldDistance = distance(otherEvent.clientX - event.clientX + event.movementX, otherEvent.clientY - event.clientY + event.movementY) / pointersDown.length - 1
       multiplyZoom(oldDistance / newDistance)
     }
     if (pointersDown.length > 0 && elementRef.current) {

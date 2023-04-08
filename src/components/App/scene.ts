@@ -9,14 +9,14 @@ type HIPStarOriginal = [number, number, number, number, number]
 
 type HIPStar = {
   id: number,
-  coords: vec3,
+  coords: [number, number, number],
   bv: number,
   mag: number
 }
 
 export type ShaderProgramsMap = {
   stars: WebGLProgram,
-  constellations: WebGLProgram
+  constellations: WebGLProgram,
 }
 
 export type Viewport = {x: number, y: number}
@@ -37,9 +37,9 @@ const constellationLines = constellationLineship.map(constellation => constellat
     return star.coords
   })
 
-const positions = hipparcosCartesian.map(star => star.coords).flat() as number[]
+const positions = hipparcosCartesian.flatMap(star => star.coords)
 const sizes = hipparcosCartesian.map(star => Math.max((9 - star.mag) * window.devicePixelRatio, 2))
-const colors = hipparcosCartesian.map(star => bvToRgb(star.bv)).flat()
+const colors = hipparcosCartesian.flatMap(star => bvToRgb(star.bv))
 
 export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsMap => {
   gl.clearColor(0, 0, 0, 1)
