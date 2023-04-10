@@ -1,7 +1,7 @@
 import { mat4 } from 'gl-matrix'
 import hipparcosCatalogOriginal from '../../hipparcos_8_concise.json'
 import constellationLineship from '../../constellationLineship.json'
-import { bvToRgb, degreesToRad, lookAnglesToCartesian, raDecToCartesian } from './celestial'
+import { bvToRgb, decimalYear, degreesToRad, lookAnglesToCartesian, raDecToCartesian } from './celestial'
 import { initShaderProgram } from './webgl'
 import { groundFragmentSource, groundVertexSource, constellationFragmentSource, constellationVertexSource, satelliteFragmentSource, satelliteVertexSource, starFragmentSource, starVertexSource } from './shaders'
 import * as satellite from 'satellite.js'
@@ -12,7 +12,7 @@ type HIPStarOriginal = [number, number, number, number, number]
 
 type HIPStar = {
   id: number,
-  coords: [number, number, number],
+  raDec: [number, number],
   bv: number,
   mag: number
 }
@@ -31,23 +31,23 @@ export type Viewport = {x: number, y: number}
 export type Panning = {x: number, y: number}
 export type Location = {latitude: number, longitude: number, altitude: number}
 
-const hipparcosCartesian: HIPStar[] = (hipparcosCatalogOriginal as HIPStarOriginal[]).map((item) => ({
+const hipparcos: HIPStar[] = (hipparcosCatalogOriginal as HIPStarOriginal[]).map((item) => ({
   id: item[0],
   mag: item[1],
-  coords: raDecToCartesian(degreesToRad(item[2]), degreesToRad(item[3])),
+  raDec: [degreesToRad(item[2]), degreesToRad(item[3])],
   bv: item[4]
 }))
 
 const constellationLines = constellationLineship.map(constellation => constellation.slice(2))
-  .flat().map(hipIndex => {
-    const star = hipparcosCartesian.find(item => item.id === hipIndex)
+  .flat().flatMap(hipIndex => {
+    const star = hipparcos.find(item => item.id === hipIndex)
     if (!star) throw new Error(`No star with id ${hipIndex}`)
-    return star.coords
+    return star.raDec
   })
 
-const starPositions = hipparcosCartesian.flatMap(star => star.coords)
-const starSizes = hipparcosCartesian.map(star => Math.max((10 - star.mag) * window.devicePixelRatio, 2))
-const starColors = hipparcosCartesian.flatMap(star => bvToRgb(star.bv))
+const starPositions = hipparcos.flatMap(star => star.raDec)
+const starSizes = hipparcos.map(star => Math.max((10 - star.mag) * window.devicePixelRatio, 2))
+const starColors = hipparcos.flatMap(star => bvToRgb(star.bv))
 const catalogLines = catalog.split('\n')
 const satRecs: satellite.SatRec[] = []
 for (let i = 0; i < catalogLines.length; i += 3) {
@@ -79,14 +79,14 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsM
   }
 }
 
-const drawStars = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawStars = (gl: WebGL2RenderingContext, program: WebGLProgram, date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(starPositions), gl.STATIC_DRAW)
-  const positionLocation = gl.getAttribLocation(program, 'a_position')
-  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
+  const positionLocation = gl.getAttribLocation(program, 'a_raDec')
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
 
   const sizeBuffer = gl.createBuffer()
@@ -114,17 +114,22 @@ const drawStars = (gl: WebGL2RenderingContext, program: WebGLProgram, projection
     modelViewLocation,
     false,
     modelViewMatrix)
-  gl.drawArrays(gl.POINTS, 0, hipparcosCartesian.length)
+  const timeLocation = gl.getUniformLocation(program, 'u_timeYears')
+  gl.uniform1f(
+    timeLocation,
+    decimalYear(date)
+  )
+  gl.drawArrays(gl.POINTS, 0, starPositions.length / 2)
 }
 
-const drawConstellations = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawConstellations = (gl: WebGL2RenderingContext, program: WebGLProgram, date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(constellationLines.flat() as number[]), gl.STATIC_DRAW)
-  const positionLocation = gl.getAttribLocation(program, 'a_position')
-  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(constellationLines), gl.STATIC_DRAW)
+  const positionLocation = gl.getAttribLocation(program, 'a_raDec')
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
 
   const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
@@ -139,7 +144,13 @@ const drawConstellations = (gl: WebGL2RenderingContext, program: WebGLProgram, p
     false,
     modelViewMatrix)
 
-  gl.drawArrays(gl.LINES, 0, constellationLines.length)
+  const timeLocation = gl.getUniformLocation(program, 'u_timeYears')
+  gl.uniform1f(
+    timeLocation,
+    decimalYear(date)
+  )
+
+  gl.drawArrays(gl.LINES, 0, constellationLines.length / 2)
 }
 
 const drawGround = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) => {
@@ -208,8 +219,8 @@ const drawSatellites = (gl: WebGL2RenderingContext, program: WebGLProgram, date:
     modelViewMatrix)
 
   gl.uniform4fv(gl.getUniformLocation(program, 'u_color'), new Float32Array([0, 1, 0, 1]))
-  gl.uniform1f(gl.getUniformLocation(program, 'u_size'), 16)
-  gl.drawArrays(gl.POINTS, 0, hipparcosCartesian.length)
+  gl.uniform1f(gl.getUniformLocation(program, 'u_size'), 16 * devicePixelRatio)
+  gl.drawArrays(gl.POINTS, 0, satellitePositions.length / 3)
 }
 
 export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date }: {
@@ -252,8 +263,8 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   const groundViewMatrix = mat4.create()
   mat4.multiply(groundViewMatrix, panningMatrix, groundViewMatrix)
 
-  drawConstellations(gl, shaderPrograms.constellations, projectionMatrix, skyViewMatrix)
-  drawStars(gl, shaderPrograms.stars, projectionMatrix, skyViewMatrix)
+  drawConstellations(gl, shaderPrograms.constellations, date, projectionMatrix, skyViewMatrix)
+  drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
   drawSatellites(gl, shaderPrograms.satellites.program, date, location, projectionMatrix, groundViewMatrix)
   drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
 }

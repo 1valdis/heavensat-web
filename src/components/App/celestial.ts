@@ -32,18 +32,10 @@ export function degreesToRad (degrees: number): number {
 }
 
 export function raDecToCartesian (ra: number, dec: number): [number, number, number] {
-  // Convert equatorial coordinates to spherical coordinates
-  const theta = Math.PI / 2 - dec
-  const phi = ra
+  const x = Math.cos(ra) * Math.cos(dec)
+  const y = Math.sin(ra) * Math.cos(dec)
+  const z = Math.sin(dec)
 
-  // Convert spherical coordinates to Cartesian coordinates
-  const x = Math.sin(theta) * Math.cos(phi)
-  const y = Math.sin(theta) * Math.sin(phi)
-  const z = Math.cos(theta)
-
-  // x y z would require
-  // mat4.rotate(viewMatrix, viewMatrix, degreesToRad(-90), [1, 0, 0])
-  // and lstRadians + degreesToRad(90)
   return [x, y, z]
 }
 
@@ -53,4 +45,11 @@ export function lookAnglesToCartesian (elevation: number, azimuth: number): [num
   const z = Math.sin(elevation)
 
   return [y, z, x]
+}
+
+export function decimalYear (date: Date) {
+  const y = date.getUTCFullYear()
+  const start = Date.UTC(y, 0, 1) // Start of UTC year
+  const end = Date.UTC(y + 1, 0, 1) // Start of following UTC year
+  return y + (+date - start) / (end - start)
 }
