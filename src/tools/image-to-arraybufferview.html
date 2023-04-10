@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Png</title>
+</head>
+<body>
+  <p>This tool creates a UInt8ClampedArray from an image file and code to load it</p>
+  <input type="file" id="fileInput"><br>
+  <output></output>
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const output = document.querySelector('output')
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        const img = new Image();
+
+        img.onload = () => {
+          canvas.width = img.width
+          canvas.height = img.height
+          ctx.drawImage(img, 0, 0)
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          output.innerHTML = `const textureBuffer = new Uint8Array([${imageData.data.toString()}])<br>gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ${imageData.width}, ${imageData.height}, 0, gl.RGBA, gl.UNSIGNED_BYTE, textureBuffer)`
+        };
+
+        img.src = e.target.result;
+      };
+
+      reader.readAsDataURL(file);
+    });
+  </script>
+</body>
+</html>
