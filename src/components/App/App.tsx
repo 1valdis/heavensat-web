@@ -6,6 +6,7 @@ import { useLatest } from './use-latest'
 import { useCameraControls } from './use-camera-controls'
 import { drawScene, Location, Panning, setupShaderPrograms, ShaderProgramsMap, Viewport } from './scene'
 import { Menu } from '../Ui/Menu'
+import { useAnimationFrame } from '../../useAnimationFrame'
 
 const maxFov = 120
 const minFov = 0.5
@@ -24,6 +25,8 @@ function App () {
   const glRef = useRef<WebGL2RenderingContext>()
 
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
+
+  useAnimationFrame(() => setDate(new Date()))
 
   useEffect(() => {
     const gl = ref.current!.getContext('webgl2')!
