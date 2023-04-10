@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './App.css'
-import { degreesToRad } from '../../util/celestial'
+import { degreesToRad } from './celestial'
 import useResizeObserver from './use-resize-observer'
 import { useLatest } from './use-latest'
 import { useCameraControls } from './use-camera-controls'
@@ -31,7 +31,7 @@ function App () {
     if (!shaderPrograms) {
       setShaderPrograms(setupShaderPrograms(glRef.current))
     }
-    return () => Object.values(shaderPrograms ?? {}).forEach(program => gl.deleteProgram(program))
+    // no cleanup yet
   }, [shaderPrograms])
 
   const updatePanning = useCallback((dx: number, dy: number) => {

@@ -3,11 +3,11 @@ export function loadShader (gl: WebGL2RenderingContext, type: number, source: st
   gl.shaderSource(shader, source)
   gl.compileShader(shader)
   // See if it compiled successfully
-  // if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-  //   alert(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`)
-  //   gl.deleteShader(shader)
-  //   throw new Error("Couldn't compile shader")
-  // }
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    alert(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`)
+    gl.deleteShader(shader)
+    throw new Error("Couldn't compile shader")
+  }
   return shader
 }
 

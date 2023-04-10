@@ -4,7 +4,7 @@ An app where hopefully in the future you'll be able to see satellites and their 
 
 - [x] Stars, constellations, basic controls
 - [x] Geographically and time wise correct sky
-- [ ] Satellites
+- [x] Satellites
 - [ ] Sun, moon
 - [ ] Planets
 - [ ] Not simply dark but correctly colored sky gradient

@@ -36,7 +36,7 @@ export const starFragmentSource = `#version 300 es
   }
 `
 
-export const lineVertexSource = `#version 300 es
+export const constellationVertexSource = `#version 300 es
   precision highp float;
   in vec4 a_position;
 
@@ -48,7 +48,7 @@ export const lineVertexSource = `#version 300 es
   }
 `
 
-export const lineFragmentSource = `#version 300 es
+export const constellationFragmentSource = `#version 300 es
   precision highp float;
   out vec4 lineColor;
 
@@ -78,3 +78,34 @@ export const groundFragmentSource = `#version 300 es
   }
 `
 
+export const satelliteVertexSource = `#version 300 es
+  precision highp float;
+
+  in vec4 a_position;
+
+  uniform float u_size;
+  uniform mat4 u_projectionMatrix;
+  uniform mat4 u_modelViewMatrix;
+
+  void main() {
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
+    gl_PointSize = u_size;
+  }
+`
+
+export const satelliteFragmentSource = `#version 300 es
+  precision highp float;
+
+  out vec4 color;
+
+  // in vec4 v_color;
+
+  uniform vec4 u_color;
+  uniform sampler2D u_spriteTexture;
+
+  void main() {
+    float clampedY = clamp((gl_PointCoord.y - 0.25) * 2.0, 0.0, 1.0);
+    color = vec4(u_color.rgb, texture(u_spriteTexture, vec2(gl_PointCoord.x, clampedY)).a);
+    // color = vec4(1.0,1.0,1.0,1.0);
+  }
+`

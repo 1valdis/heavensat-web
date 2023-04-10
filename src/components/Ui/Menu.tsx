@@ -12,7 +12,12 @@ export interface MenuProps {
 export const Menu: FC<MenuProps> = ({ date, setDate, setLocation }) => {
   const incrementDate = useCallback(() => {
     const newDate = new Date(date)
-    newDate.setTime(newDate.getTime() + (60 * 60 * 1000))
+    newDate.setTime(newDate.getTime() + 1000)
+    setDate(newDate)
+  }, [date, setDate])
+  const decrementDate = useCallback(() => {
+    const newDate = new Date(date)
+    newDate.setTime(newDate.getTime() - 1000)
     setDate(newDate)
   }, [date, setDate])
   const updateLocation = useCallback(() => {
@@ -25,7 +30,9 @@ export const Menu: FC<MenuProps> = ({ date, setDate, setLocation }) => {
     )
   }, [setLocation])
   return <nav>
-    <button onClick={incrementDate}>+1 hour</button>
+    <label style={{ color: 'white' }}>{date.toISOString()}</label>
+    <button onClick={incrementDate}>+1s</button>
+    <button onClick={decrementDate}>-1s</button>
     <button onClick={updateLocation}>Locate</button>
   </nav>
 }

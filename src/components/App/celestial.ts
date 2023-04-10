@@ -44,24 +44,13 @@ export function raDecToCartesian (ra: number, dec: number): [number, number, num
   // x y z would require
   // mat4.rotate(viewMatrix, viewMatrix, degreesToRad(-90), [1, 0, 0])
   // and lstRadians + degreesToRad(90)
-  return [y, z, x]
+  return [x, y, z]
 }
 
-export function getLocalSiderealTime (date: Date, longitude: number): number {
-  // Constants
-  const J2000 = new Date(Date.UTC(2000, 0, 1, 12, 0, 0))
-  const SECONDS_PER_DAY = 86400
-  const DEGREES_PER_DAY = 360.985647366
+export function lookAnglesToCartesian (elevation: number, azimuth: number): [number, number, number] {
+  const x = Math.cos(elevation) * Math.cos(azimuth)
+  const y = -Math.cos(elevation) * Math.sin(azimuth)
+  const z = Math.sin(elevation)
 
-  // Calculate the number of days since J2000 epoch (including fractions)
-  const daysSinceJ2000 = (date.getTime() - J2000.getTime()) / (1000 * SECONDS_PER_DAY)
-
-  // Calculate Greenwich Mean Sidereal Time (GMST) in degrees
-  const GMSTdeg = (100.46061837 + DEGREES_PER_DAY * daysSinceJ2000) % 360
-
-  // Calculate Local Sidereal Time (LST) in degrees
-  const LSTdeg = (GMSTdeg + longitude) % 360
-
-  // Convert Local Sidereal Time from degrees to radians
-  return (LSTdeg * Math.PI) / 180
+  return [y, z, x]
 }
