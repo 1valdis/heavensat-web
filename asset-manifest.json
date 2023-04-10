@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/heavensat-web/static/css/main.50bae620.css",
-    "main.js": "/heavensat-web/static/js/main.69e66f7b.js",
+    "main.css": "/heavensat-web/static/css/main.0b907eda.css",
+    "main.js": "/heavensat-web/static/js/main.a0c51a15.js",
     "index.html": "/heavensat-web/index.html",
-    "main.50bae620.css.map": "/heavensat-web/static/css/main.50bae620.css.map",
-    "main.69e66f7b.js.map": "/heavensat-web/static/js/main.69e66f7b.js.map"
+    "main.0b907eda.css.map": "/heavensat-web/static/css/main.0b907eda.css.map",
+    "main.a0c51a15.js.map": "/heavensat-web/static/js/main.a0c51a15.js.map"
   },
   "entrypoints": [
-    "static/css/main.50bae620.css",
-    "static/js/main.69e66f7b.js"
+    "static/css/main.0b907eda.css",
+    "static/js/main.a0c51a15.js"
   ]
 }
