@@ -1,11 +1,12 @@
 import { FC, useCallback } from 'react'
-import { Location } from '../App/scene'
+import { Location } from '../App/common-types'
 
 import './Menu.css'
 
 export interface MenuProps {
   date: Date
   setDate: (date: Date) => void
+  location: Location
   setLocation: (location: Location) => void
 }
 

@@ -154,3 +154,49 @@ export const satelliteFragmentSource = `#version 300 es
     // color = vec4(1.0,1.0,1.0,1.0);
   }
 `
+
+export const gridLineVertexSource = `#version 300 es
+  precision highp float;
+  in vec4 a_position;
+
+  uniform mat4 u_projectionMatrix;
+  uniform mat4 u_modelViewMatrix;
+
+  void main() {
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
+  }
+`
+
+export const gridLineFragmentSource = `#version 300 es
+  precision highp float;
+  out vec4 lineColor;
+
+  void main() {
+    lineColor = vec4(0.7, 0.7, 1.0, 1.0);
+  }
+`
+
+export const debugVertexSource = `#version 300 es
+  precision highp float;
+
+  in vec4 a_position;
+
+  uniform mat4 u_projectionMatrix;
+  uniform mat4 u_modelViewMatrix;
+
+  void main() {
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
+    gl_PointSize = 2.0;
+  }
+`
+
+export const debugFragmentSource = `#version 300 es
+  precision highp float;
+
+  out vec4 pointColor;
+
+  void main() {
+    pointColor = vec4(1.0, 0.0, 0.0, 1.0);
+  }
+`
+

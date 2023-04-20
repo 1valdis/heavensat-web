@@ -1,16 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import './App.css'
 import { degreesToRad } from './celestial'
 import useResizeObserver from './use-resize-observer'
 import { useLatest } from './use-latest'
 import { useCameraControls } from './use-camera-controls'
-import { drawScene, Location, Panning, setupShaderPrograms, ShaderProgramsMap, Viewport } from './scene'
+import { drawScene, setupShaderPrograms, ShaderProgramsMap } from './scene'
 import { Menu } from '../Ui/Menu'
 import { useAnimationFrame } from '../../useAnimationFrame'
+import { catalog } from './catalog'
+import { Viewport, Location, Panning, Satellite } from './common-types'
+import { Propagator } from './propagator'
 
 const maxFov = 120
 const minFov = 0.5
 const zoomSensitivity = 0.3
+
+const propagator = new Propagator()
 
 function App () {
   const [viewport, setViewport] = useState<Viewport>({ x: window.innerWidth, y: window.innerHeight })
@@ -20,6 +25,32 @@ function App () {
 
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0 })
   const [date, setDate] = useState(new Date())
+
+  const [satellites, setSatellites] = useState<Satellite[]>(((): Satellite[] => {
+    const catalogLines = catalog.split('\n')
+    const satellites: Satellite[] = []
+    for (let i = 0; i < catalogLines.length; i += 3) {
+      satellites.push({
+        name: catalogLines[i]!.slice(2),
+        norad: catalogLines[i + 1]!.slice(2, 7),
+        tleLines: [catalogLines[i + 1]!, catalogLines[i + 2]!]
+      })
+    }
+    return satellites
+  })())
+
+  useEffect(() => {
+    propagator.init(satellites)
+  }, [satellites])
+
+  useEffect(() => {
+    propagator.process(date, location)
+  }, [date, location])
+
+  const propagatedSatellites = useSyncExternalStore((callback) => {
+    propagator.addEventListener('propagate-result', callback)
+    return () => propagator.removeEventListener('propagate-result', callback)
+  }, () => propagator.propagated)
 
   const ref = useRef<HTMLCanvasElement>(null)
   const glRef = useRef<WebGL2RenderingContext>()
@@ -101,9 +132,10 @@ function App () {
       fov,
       location,
       date,
-      panning
+      panning,
+      propagatedSatellites
     })
-  }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date])
+  }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date, propagatedSatellites])
 
   return (
     <div className="App">
@@ -111,6 +143,7 @@ function App () {
       <Menu
         date={date}
         setDate={setDate}
+        location={location}
         setLocation={setLocation}
         />
     </div>
