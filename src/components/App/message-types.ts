@@ -24,10 +24,10 @@ export type InitAnswer = BasicEvent & {
 
 export type PropagateAnswer = BasicEvent & {
   type: 'process',
-  result: Array<{
-    norad: string,
-    cartesian: [number, number, number] | null,
-  }>
+  result: {
+    failedNorads: string[],
+    positionsOfTheRest: Float32Array
+  }
 }
 
 export type WorkerAnswer = InitAnswer | PropagateAnswer

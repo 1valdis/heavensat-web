@@ -7,7 +7,7 @@ import { groundFragmentSource, groundVertexSource, constellationFragmentSource, 
 // import * as satellitewasm from 'assemblyscript-satellitejs'
 import * as satellite from 'satellite.js'
 import { satelliteTexture } from './textures'
-import { Viewport, Panning, Location, PropagatedSatellite } from './common-types'
+import { Viewport, Panning, Location } from './common-types'
 
 type HIPStarOriginal = [number, number, number, number, number]
 
@@ -176,16 +176,12 @@ const drawGround = (gl: WebGL2RenderingContext, program: WebGLProgram, projectio
   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
 }
 
-const drawSatellites = (gl: WebGL2RenderingContext, program: WebGLProgram, propagatedSatellites: readonly PropagatedSatellite[], projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawSatellites = (gl: WebGL2RenderingContext, program: WebGLProgram, propagatedSatellites: Float32Array, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
-  const satellitePositions = propagatedSatellites.flatMap((propagated) => {
-    if (propagated.cartesian === null) return []
-    return propagated.cartesian
-  })
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(satellitePositions), gl.DYNAMIC_DRAW)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(propagatedSatellites), gl.DYNAMIC_DRAW)
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
@@ -204,7 +200,7 @@ const drawSatellites = (gl: WebGL2RenderingContext, program: WebGLProgram, propa
 
   gl.uniform4fv(gl.getUniformLocation(program, 'u_color'), new Float32Array([0, 1, 0, 1]))
   gl.uniform1f(gl.getUniformLocation(program, 'u_size'), 16 * devicePixelRatio)
-  gl.drawArrays(gl.POINTS, 0, satellitePositions.length / 3)
+  gl.drawArrays(gl.POINTS, 0, propagatedSatellites.length / 3)
 }
 
 const azimuthalGrid = Array.from({ length: 9 }, (item, index) => {
@@ -287,7 +283,7 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   location: Location;
   date: Date
   panning: Panning;
-  propagatedSatellites: readonly PropagatedSatellite[]
+  propagatedSatellites: Float32Array
 }) => {
   gl.clear(gl.COLOR_BUFFER_BIT)
 

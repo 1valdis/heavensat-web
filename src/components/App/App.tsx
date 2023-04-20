@@ -9,13 +9,13 @@ import { Menu } from '../Ui/Menu'
 import { useAnimationFrame } from '../../useAnimationFrame'
 import { catalog } from './catalog'
 import { Viewport, Location, Panning, Satellite } from './common-types'
-import { Propagator } from './propagator'
+import { ConcurrentPropagator } from './propagator'
 
 const maxFov = 120
 const minFov = 0.5
 const zoomSensitivity = 0.3
 
-const propagator = new Propagator()
+const propagator = new ConcurrentPropagator()
 
 function App () {
   const [viewport, setViewport] = useState<Viewport>({ x: window.innerWidth, y: window.innerHeight })

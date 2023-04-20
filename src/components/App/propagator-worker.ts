@@ -9,8 +9,11 @@ function lookAnglesToCartesian (elevation: number, azimuth: number): [number, nu
   return [y, z, x]
 }
 
-function typedPostMessage (message: WorkerAnswer, options?: Parameters<typeof postMessage>[1]) {
-  postMessage(message, options)
+type ParametersExceptFirst<F> =
+   F extends (arg0: any, ...rest: infer R) => any ? R : never;
+
+function typedPostMessage (message: WorkerAnswer, ...rest: ParametersExceptFirst<typeof postMessage>) {
+  postMessage(message, ...rest)
 }
 
 let satRecs: satellite.SatRec[] = []
@@ -32,24 +35,33 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       height: location.altitude / 1000
     }
 
+    const positions = satRecs.map((satRec) => {
+      const positionEci = satellite.propagate(satRec, date)
+      if (typeof positionEci.position !== 'object') {
+        return {
+          cartesian: null,
+          norad: satRec.satnum
+        }
+      }
+      const positionEcf = satellite.eciToEcf(positionEci.position as satellite.EciVec3<number>, gmst)
+      const lookAngles = satellite.ecfToLookAngles(locationForLib, positionEcf)
+      return {
+        norad: satRec.satnum,
+        cartesian: lookAnglesToCartesian(lookAngles.elevation, lookAngles.azimuth)
+      }
+    })
+
+    const positionsArray = new Float32Array(positions.filter(position => position.cartesian).flatMap(position => position.cartesian!))
+
     typedPostMessage({
       type: 'process',
-      result: satRecs.map((satRec) => {
-        const positionEci = satellite.propagate(satRec, date)
-        if (typeof positionEci.position !== 'object') {
-          return {
-            cartesian: null,
-            norad: satRec.satnum
-          }
-        }
-        const positionEcf = satellite.eciToEcf(positionEci.position as satellite.EciVec3<number>, gmst)
-        const lookAngles = satellite.ecfToLookAngles(locationForLib, positionEcf)
-        return {
-          norad: satRec.satnum,
-          cartesian: lookAnglesToCartesian(lookAngles.elevation, lookAngles.azimuth)
-        }
-      }),
+      result: {
+        failedNorads: positions.filter((position) => !position.cartesian).map(position => position.norad),
+        positionsOfTheRest: positionsArray
+      },
       queryId
-    })
+    // idk why typescript thinks I can't transfer an ArrayBuffer??
+    // @ts-expect-error Type 'ArrayBufferLike[]' has no properties in common with type 'WindowPostMessageOptions'.
+    }, [positionsArray.buffer])
   }
 }
