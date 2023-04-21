@@ -1,22 +1,93 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-export const useAnimationFrame = (callback: (deltaTime: number) => void) => {
-  // Use useRef for mutable variables that we want to persist
-  // without triggering a re-render on their change
-  const requestRef = useRef<number>()
-  const previousTimeRef = useRef<number>()
+export type Controls = {
+  isStopped: boolean
+  stop: () => void
+  start: () => void
+}
 
-  const animate = useCallback((time: number) => {
-    if (previousTimeRef.current !== undefined) {
-      const deltaTime = time - previousTimeRef.current
-      callback(deltaTime)
-    }
-    previousTimeRef.current = time
-    requestRef.current = requestAnimationFrame(animate)
+type AnimationFrameLoopOptions = {
+  startOnMount?: boolean
+}
+
+type AnimationFrameHandle = ReturnType<typeof requestAnimationFrame>
+
+const useAnimationFrame = <T extends (...args: never[]) => unknown>(
+  callback: T
+): ((...args: Parameters<T>) => number) => {
+  const rafCallback = useRef<T>(callback)
+  const handleRef = useRef<AnimationFrameHandle | null>(null)
+
+  useEffect(() => {
+    rafCallback.current = callback
   }, [callback])
 
   useEffect(() => {
-    requestRef.current = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(requestRef.current!)
-  }, [animate]) // Make sure the effect runs only once
+    return () => {
+      if (handleRef.current) {
+        cancelAnimationFrame(handleRef.current)
+      }
+    }
+  }, [])
+
+  return useCallback<(...args: Parameters<T>) => number>(
+    (...args: Parameters<T>) => {
+      handleRef.current = requestAnimationFrame(() =>
+        rafCallback.current(...args)
+      )
+      return handleRef.current
+    },
+  []
+  )
 }
+
+export const useAnimationFrameLoop = <T extends (...args: never[]) => unknown>(
+  callback: T,
+  options: AnimationFrameLoopOptions = {}
+): Controls => {
+  const { startOnMount = false } = options
+  const rafCallback = useRef<T>(callback)
+
+  const [isStopped, setIsStopped] = useState(!startOnMount)
+
+  const stop = useCallback(() => {
+    setIsStopped(true)
+  }, [setIsStopped])
+
+  const start = useCallback(() => {
+    setIsStopped(false)
+  }, [setIsStopped])
+
+  useEffect(() => {
+    rafCallback.current = callback
+  }, [callback])
+
+  const nextCallback = useCallback(() => {
+    if (!isStopped) {
+      rafCallback.current()
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      runInLoop()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStopped])
+
+  const runInLoop = useAnimationFrame(nextCallback)
+
+  useEffect(() => {
+    if (!isStopped) {
+      const h = runInLoop()
+      return () => {
+        cancelAnimationFrame(h)
+      }
+    }
+    return () => {}
+  }, [runInLoop, isStopped])
+
+  return {
+    start,
+    stop,
+    isStopped
+  }
+}
+
+export default useAnimationFrameLoop

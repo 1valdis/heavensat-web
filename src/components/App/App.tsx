@@ -6,7 +6,7 @@ import { useLatest } from './use-latest'
 import { useCameraControls } from './use-camera-controls'
 import { drawScene, setupShaderPrograms, ShaderProgramsMap } from './scene'
 import { Menu } from '../Ui/Menu'
-import { useAnimationFrame } from '../../useAnimationFrame'
+import { useAnimationFrameLoop } from '../../useAnimationFrame'
 import { catalog } from './catalog'
 import { Viewport, Location, Panning, Satellite } from './common-types'
 import { ConcurrentPropagator } from './propagator'
@@ -26,7 +26,7 @@ function App () {
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0 })
   const [date, setDate] = useState(new Date())
 
-  const [satellites, setSatellites] = useState<Satellite[]>(((): Satellite[] => {
+  const [satellites, setSatellites] = useState<Satellite[]>((): Satellite[] => {
     const catalogLines = catalog.split('\n')
     const satellites: Satellite[] = []
     for (let i = 0; i < catalogLines.length; i += 3) {
@@ -37,7 +37,7 @@ function App () {
       })
     }
     return satellites
-  })())
+  })
 
   useEffect(() => {
     propagator.init(satellites)
@@ -47,17 +47,18 @@ function App () {
     propagator.process(date, location)
   }, [date, location])
 
-  const propagatedSatellites = useSyncExternalStore((callback) => {
+  const subscribe = useCallback((callback: () => void) => {
     propagator.addEventListener('propagate-result', callback)
     return () => propagator.removeEventListener('propagate-result', callback)
-  }, () => propagator.propagated)
+  }, [])
+  const propagatedSatellites = useSyncExternalStore(subscribe, () => propagator.propagated)
 
   const ref = useRef<HTMLCanvasElement>(null)
   const glRef = useRef<WebGL2RenderingContext>()
 
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
 
-  useAnimationFrame(() => setDate(new Date()))
+  const { start, stop, isStopped } = useAnimationFrameLoop(() => setDate(new Date()))
 
   useEffect(() => {
     const gl = ref.current!.getContext('webgl2')!
@@ -125,6 +126,11 @@ function App () {
       gl.canvas.height = viewport.y
       gl.viewport(0, 0, viewport.x, viewport.y)
     }
+  })
+
+  useEffect(() => {
+    const gl = glRef.current
+    if (!gl || !shaderPrograms) return
     drawScene({
       gl,
       shaderPrograms,
@@ -145,6 +151,9 @@ function App () {
         setDate={setDate}
         location={location}
         setLocation={setLocation}
+        startRealtime={start}
+        stopRealtime={stop}
+        isRealtime={!isStopped}
         />
     </div>
   )

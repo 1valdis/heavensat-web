@@ -8,9 +8,12 @@ export interface MenuProps {
   setDate: (date: Date) => void
   location: Location
   setLocation: (location: Location) => void
+  startRealtime: () => void
+  stopRealtime: () => void
+  isRealtime: boolean
 }
 
-export const Menu: FC<MenuProps> = ({ date, setDate, setLocation }) => {
+export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime, stopRealtime, isRealtime }) => {
   const incrementDate = useCallback(() => {
     const newDate = new Date(date)
     newDate.setTime(newDate.getTime() + 1000)
@@ -35,5 +38,6 @@ export const Menu: FC<MenuProps> = ({ date, setDate, setLocation }) => {
     <button onClick={incrementDate}>+1s</button>
     <button onClick={decrementDate}>-1s</button>
     <button onClick={updateLocation}>Locate</button>
+    <button onClick={() => isRealtime ? stopRealtime() : startRealtime()}>{isRealtime ? 'Stop' : 'Start'}</button>
   </nav>
 }
