@@ -19,9 +19,26 @@ type HIPStar = {
 }
 
 export type ShaderProgramsMap = {
-  stars: WebGLProgram,
-  constellations: WebGLProgram,
-  ground: WebGLProgram,
+  stars: {
+    program: WebGLProgram,
+    buffers: {
+      positions: WebGLBuffer,
+      sizes: WebGLBuffer,
+      colors: WebGLBuffer
+    }
+  },
+  constellations: {
+    program: WebGLProgram,
+    buffers: {
+      positions: WebGLBuffer
+    }
+  },
+  ground: {
+    program: WebGLProgram,
+    buffers: {
+      positions: WebGLBuffer
+    }
+  },
   satellites: {
     program: WebGLProgram,
     texture: WebGLTexture,
@@ -44,9 +61,9 @@ const constellationLines = constellationLineship.map(constellation => constellat
     return star.raDec
   })
 
-const starPositions = hipparcos.flatMap(star => star.raDec)
-const starSizes = hipparcos.map(star => Math.max((10 - star.mag) * window.devicePixelRatio, 2))
-const starColors = hipparcos.flatMap(star => bvToRgb(star.bv))
+const starPositions = new Float32Array(hipparcos.flatMap(star => star.raDec))
+const starSizes = new Float32Array(hipparcos.map(star => Math.max((10 - star.mag) * window.devicePixelRatio, 2)))
+const starColors = new Float32Array(hipparcos.flatMap(star => bvToRgb(star.bv)))
 
 export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsMap => {
   gl.clearColor(0, 0, 0, 1)
@@ -59,10 +76,53 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsM
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST)
   gl.generateMipmap(gl.TEXTURE_2D)
+
+  const starsPositionBuffer = gl.createBuffer()!
+  gl.bindBuffer(gl.ARRAY_BUFFER, starsPositionBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, starPositions, gl.STATIC_DRAW)
+
+  const sizeBuffer = gl.createBuffer()!
+  gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, starSizes, gl.STATIC_DRAW)
+
+  const colorBuffer = gl.createBuffer()!
+  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, starColors, gl.STATIC_DRAW)
+
+  const constellationPositionsBuffer = gl.createBuffer()!
+  gl.bindBuffer(gl.ARRAY_BUFFER, constellationPositionsBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(constellationLines), gl.STATIC_DRAW)
+
+  const groundPositionBuffer = gl.createBuffer()!
+  gl.bindBuffer(gl.ARRAY_BUFFER, groundPositionBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1, -0.0001, -1,
+    1, -0.0001, -1,
+    1, -0.0001, 1,
+    -1, -0.0001, 1
+  ]), gl.STATIC_DRAW)
+
   return {
-    stars: initShaderProgram(gl, starVertexSource, starFragmentSource),
-    constellations: initShaderProgram(gl, constellationVertexSource, constellationFragmentSource),
-    ground: initShaderProgram(gl, groundVertexSource, groundFragmentSource),
+    stars: {
+      program: initShaderProgram(gl, starVertexSource, starFragmentSource),
+      buffers: {
+        positions: starsPositionBuffer,
+        sizes: sizeBuffer,
+        colors: colorBuffer
+      }
+    },
+    constellations: {
+      program: initShaderProgram(gl, constellationVertexSource, constellationFragmentSource),
+      buffers: {
+        positions: constellationPositionsBuffer
+      }
+    },
+    ground: {
+      program: initShaderProgram(gl, groundVertexSource, groundFragmentSource),
+      buffers: {
+        positions: groundPositionBuffer
+      }
+    },
     satellites: {
       texture,
       program: initShaderProgram(gl, satelliteVertexSource, satelliteFragmentSource)
@@ -72,26 +132,20 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsM
   }
 }
 
-const drawStars = (gl: WebGL2RenderingContext, program: WebGLProgram, date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawStars = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['stars'], date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
-  const positionBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(starPositions), gl.STATIC_DRAW)
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
   const positionLocation = gl.getAttribLocation(program, 'a_raDec')
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
 
-  const sizeBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, sizeBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(starSizes), gl.STATIC_DRAW)
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.sizes)
   const sizeLocation = gl.getAttribLocation(program, 'a_size')
   gl.vertexAttribPointer(sizeLocation, 1, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(sizeLocation)
 
-  const colorBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(starColors), gl.STATIC_DRAW)
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.colors)
   const colorLocation = gl.getAttribLocation(program, 'a_color')
   gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(colorLocation)
@@ -115,12 +169,10 @@ const drawStars = (gl: WebGL2RenderingContext, program: WebGLProgram, date: Date
   gl.drawArrays(gl.POINTS, 0, starPositions.length / 2)
 }
 
-const drawConstellations = (gl: WebGL2RenderingContext, program: WebGLProgram, date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawConstellations = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['constellations'], date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
-  const positionBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(constellationLines), gl.STATIC_DRAW)
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
   const positionLocation = gl.getAttribLocation(program, 'a_raDec')
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
@@ -146,17 +198,10 @@ const drawConstellations = (gl: WebGL2RenderingContext, program: WebGLProgram, d
   gl.drawArrays(gl.LINES, 0, constellationLines.length / 2)
 }
 
-const drawGround = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawGround = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['ground'], projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
-  const positionBuffer = gl.createBuffer()
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    -1, -0.0001, -1,
-    1, -0.0001, -1,
-    1, -0.0001, 1,
-    -1, -0.0001, 1
-  ]), gl.STATIC_DRAW)
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
@@ -181,7 +226,7 @@ const drawSatellites = (gl: WebGL2RenderingContext, program: WebGLProgram, propa
 
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(propagatedSatellites), gl.DYNAMIC_DRAW)
+  gl.bufferData(gl.ARRAY_BUFFER, propagatedSatellites, gl.DYNAMIC_DRAW)
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
