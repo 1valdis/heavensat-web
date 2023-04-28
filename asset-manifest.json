@@ -1,22 +1,22 @@
 {
   "files": {
     "main.css": "/heavensat-web/static/css/main.bbcf5fe4.css",
-    "main.js": "/heavensat-web/static/js/main.e825da0f.js",
-    "static/js/282.74bf7554.chunk.js": "/heavensat-web/static/js/282.74bf7554.chunk.js",
-    "static/js/721.e615488c.chunk.js": "/heavensat-web/static/js/721.e615488c.chunk.js",
-    "static/js/223.d34d4e1c.chunk.js": "/heavensat-web/static/js/223.d34d4e1c.chunk.js",
-    "static/js/317.ced2d090.chunk.js": "/heavensat-web/static/js/317.ced2d090.chunk.js",
-    "static/js/162.86af5cea.chunk.js": "/heavensat-web/static/js/162.86af5cea.chunk.js",
-    "static/js/719.6f742264.chunk.js": "/heavensat-web/static/js/719.6f742264.chunk.js",
+    "main.js": "/heavensat-web/static/js/main.f46c343c.js",
+    "static/js/282.4474032b.chunk.js": "/heavensat-web/static/js/282.4474032b.chunk.js",
+    "static/js/721.93c5f40c.chunk.js": "/heavensat-web/static/js/721.93c5f40c.chunk.js",
+    "static/js/223.47745db2.chunk.js": "/heavensat-web/static/js/223.47745db2.chunk.js",
+    "static/js/317.b3c6ff3f.chunk.js": "/heavensat-web/static/js/317.b3c6ff3f.chunk.js",
+    "static/js/162.44f65c29.chunk.js": "/heavensat-web/static/js/162.44f65c29.chunk.js",
+    "static/js/719.5192082e.chunk.js": "/heavensat-web/static/js/719.5192082e.chunk.js",
     "static/media/msdf.png": "/heavensat-web/static/media/msdf.fe535e7a04a05a9855ef.png",
     "index.html": "/heavensat-web/index.html",
     "main.bbcf5fe4.css.map": "/heavensat-web/static/css/main.bbcf5fe4.css.map",
-    "main.e825da0f.js.map": "/heavensat-web/static/js/main.e825da0f.js.map",
-    "282.74bf7554.chunk.js.map": "/heavensat-web/static/js/282.74bf7554.chunk.js.map",
-    "719.6f742264.chunk.js.map": "/heavensat-web/static/js/719.6f742264.chunk.js.map"
+    "main.f46c343c.js.map": "/heavensat-web/static/js/main.f46c343c.js.map",
+    "282.4474032b.chunk.js.map": "/heavensat-web/static/js/282.4474032b.chunk.js.map",
+    "719.5192082e.chunk.js.map": "/heavensat-web/static/js/719.5192082e.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.bbcf5fe4.css",
-    "static/js/main.e825da0f.js"
+    "static/js/main.f46c343c.js"
   ]
 }
