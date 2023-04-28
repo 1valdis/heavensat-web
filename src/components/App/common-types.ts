@@ -10,3 +10,10 @@ export type PropagatedSatellite = {
   norad: string
   cartesian: [number, number, number] | null
 }
+export type HIPStarOriginal = [number, number, number, number, number]
+export type HIPStar = {
+  id: number,
+  raDec: [number, number],
+  bv: number,
+  mag: number
+}

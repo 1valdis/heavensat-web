@@ -7,9 +7,9 @@ import { useCameraControls } from './use-camera-controls'
 import { drawScene, setupShaderPrograms, ShaderProgramsMap } from './scene'
 import { Menu } from '../Ui/Menu'
 import { useAnimationFrameLoop } from '../../useAnimationFrame'
-import { catalog } from './catalog'
 import { Viewport, Location, Panning, Satellite } from './common-types'
 import { ConcurrentPropagator } from './propagator'
+import { getAssets } from './assets-loader'
 
 const maxFov = 120
 const minFov = 0.5
@@ -26,9 +26,11 @@ function App () {
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0 })
   const [date, setDate] = useState(new Date())
 
+  const assets = getAssets()
+
   const [satellites, setSatellites] = useState<Satellite[]>((): Satellite[] => {
-    const catalogLines = catalog.split('\n')
     const satellites: Satellite[] = []
+    const catalogLines = assets.catalogs.satellites
     for (let i = 0; i < catalogLines.length; i += 3) {
       satellites.push({
         name: catalogLines[i]!.slice(2),
@@ -58,16 +60,16 @@ function App () {
 
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
 
-  const { start, stop, isStopped } = useAnimationFrameLoop(() => setDate(new Date()))
+  const { start, stop, isStopped } = useAnimationFrameLoop(() => setDate(new Date()), { startOnMount: true })
 
   useEffect(() => {
     const gl = ref.current!.getContext('webgl2')!
     glRef.current = gl
     if (!shaderPrograms) {
-      setShaderPrograms(setupShaderPrograms(glRef.current))
+      setShaderPrograms(setupShaderPrograms(glRef.current, assets))
     }
     // no cleanup yet
-  }, [shaderPrograms])
+  }, [shaderPrograms, assets])
 
   const updatePanning = useCallback((dx: number, dy: number) => {
     setPanning(({ x: oldRotX, y: oldRotY }) => ({

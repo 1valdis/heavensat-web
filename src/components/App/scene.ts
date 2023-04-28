@@ -1,22 +1,11 @@
 import { mat4 } from 'gl-matrix'
-import hipparcosCatalogOriginal from '../../hipparcos_8_concise.json'
-import constellationLineship from '../../constellationLineship.json'
 import { bvToRgb, decimalYear, degreesToRad, raDecToCartesian } from './celestial'
 import { initShaderProgram } from './webgl'
-import { groundFragmentSource, groundVertexSource, constellationFragmentSource, constellationVertexSource, satelliteFragmentSource, satelliteVertexSource, starFragmentSource, starVertexSource, gridLineVertexSource, gridLineFragmentSource, debugVertexSource, debugFragmentSource } from './shaders'
+import { groundFragmentSource, groundVertexSource, constellationFragmentSource, constellationVertexSource, satelliteFragmentSource, satelliteVertexSource, starFragmentSource, starVertexSource, gridLineVertexSource, gridLineFragmentSource, debugVertexSource, debugFragmentSource, skyVertexSource, skyFragmentSource, textFragmentShader, textVertexShader } from './shaders'
 // import * as satellitewasm from 'assemblyscript-satellitejs'
 import * as satellite from 'satellite.js'
-import { satelliteTexture } from './textures'
-import { Viewport, Panning, Location } from './common-types'
-
-type HIPStarOriginal = [number, number, number, number, number]
-
-type HIPStar = {
-  id: number,
-  raDec: [number, number],
-  bv: number,
-  mag: number
-}
+import { Viewport, Panning, Location, HIPStar } from './common-types'
+import { Assets } from './assets-loader.js'
 
 export type ShaderProgramsMap = {
   stars: {
@@ -25,13 +14,15 @@ export type ShaderProgramsMap = {
       positions: WebGLBuffer,
       sizes: WebGLBuffer,
       colors: WebGLBuffer
-    }
+    },
+    verticesCount: number,
   },
   constellations: {
     program: WebGLProgram,
     buffers: {
       positions: WebGLBuffer
-    }
+    },
+    verticesCount: number,
   },
   ground: {
     program: WebGLProgram,
@@ -43,39 +34,53 @@ export type ShaderProgramsMap = {
     program: WebGLProgram,
     texture: WebGLTexture,
   },
+  satelliteNames: {
+    program: WebGLProgram,
+    texture: WebGLTexture,
+  }
   grid: WebGLProgram,
   // debug: WebGLProgram
 }
 
-const hipparcos: HIPStar[] = (hipparcosCatalogOriginal as HIPStarOriginal[]).map((item) => ({
-  id: item[0],
-  mag: item[1],
-  raDec: [degreesToRad(item[2]), degreesToRad(item[3])],
-  bv: item[4]
-}))
-
-const constellationLines = constellationLineship.map(constellation => constellation.slice(2))
-  .flat().flatMap(hipIndex => {
-    const star = hipparcos.find(item => item.id === hipIndex)
-    if (!star) throw new Error(`No star with id ${hipIndex}`)
-    return star.raDec
+export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets): ShaderProgramsMap => {
+  const hipparcosMap = new Map<number, HIPStar>()
+  assets.catalogs.stars.forEach((item) => {
+    hipparcosMap.set(item[0], {
+      id: item[0],
+      mag: item[1],
+      raDec: [degreesToRad(item[2]), degreesToRad(item[3])],
+      bv: item[4]
+    })
   })
 
-const starPositions = new Float32Array(hipparcos.flatMap(star => star.raDec))
-const starSizes = new Float32Array(hipparcos.map(star => Math.max((10 - star.mag) * window.devicePixelRatio, 2)))
-const starColors = new Float32Array(hipparcos.flatMap(star => bvToRgb(star.bv)))
+  const constellationLines = assets.catalogs.constellations.map(constellation => constellation.slice(2))
+    .flat().flatMap(hipIndex => {
+      const star = hipparcosMap.get(hipIndex as number) // since the name is cut off by slicing
+      if (!star) throw new Error(`No star with id ${hipIndex}`)
+      return star.raDec
+    })
 
-export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsMap => {
+  const hipparcos = Array.from(hipparcosMap.values())
+  const starPositions = new Float32Array(hipparcos.flatMap(star => star.raDec))
+  const starSizes = new Float32Array(hipparcos.map(star => Math.max((10 - star.mag) * window.devicePixelRatio, 2)))
+  const starColors = new Float32Array(hipparcos.flatMap(star => bvToRgb(star.bv)))
+
   gl.clearColor(0, 0, 0, 1)
   gl.enable(gl.BLEND)
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
-  const texture = gl.createTexture()!
-  gl.bindTexture(gl.TEXTURE_2D, texture)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, satelliteTexture.width, satelliteTexture.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, satelliteTexture.buffer)
+  const satelliteTexture = gl.createTexture()!
+  gl.activeTexture(gl.TEXTURE0)
+  gl.bindTexture(gl.TEXTURE_2D, satelliteTexture)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, assets.textures.satellite.width, assets.textures.satellite.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, assets.textures.satellite)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST)
   gl.generateMipmap(gl.TEXTURE_2D)
+
+  const textTexture = gl.createTexture()!
+  gl.activeTexture(gl.TEXTURE0)
+  gl.bindTexture(gl.TEXTURE_2D, textTexture)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, assets.textures.text.width, assets.textures.text.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, assets.textures.text)
 
   const starsPositionBuffer = gl.createBuffer()!
   gl.bindBuffer(gl.ARRAY_BUFFER, starsPositionBuffer)
@@ -109,13 +114,15 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsM
         positions: starsPositionBuffer,
         sizes: sizeBuffer,
         colors: colorBuffer
-      }
+      },
+      verticesCount: starPositions.length / 2
     },
     constellations: {
       program: initShaderProgram(gl, constellationVertexSource, constellationFragmentSource),
       buffers: {
         positions: constellationPositionsBuffer
-      }
+      },
+      verticesCount: constellationLines.length / 2
     },
     ground: {
       program: initShaderProgram(gl, groundVertexSource, groundFragmentSource),
@@ -124,15 +131,19 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext): ShaderProgramsM
       }
     },
     satellites: {
-      texture,
-      program: initShaderProgram(gl, satelliteVertexSource, satelliteFragmentSource)
+      program: initShaderProgram(gl, satelliteVertexSource, satelliteFragmentSource),
+      texture: satelliteTexture
+    },
+    satelliteNames: {
+      program: initShaderProgram(gl, textVertexShader, textFragmentShader),
+      texture: textTexture
     },
     grid: initShaderProgram(gl, gridLineVertexSource, gridLineFragmentSource)
     // debug: initShaderProgram(gl, debugVertexSource, debugFragmentSource)
   }
 }
 
-const drawStars = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['stars'], date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawStars = (gl: WebGL2RenderingContext, { program, buffers, verticesCount }: ShaderProgramsMap['stars'], date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
@@ -166,10 +177,10 @@ const drawStars = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgr
     timeLocation,
     decimalYear(date)
   )
-  gl.drawArrays(gl.POINTS, 0, starPositions.length / 2)
+  gl.drawArrays(gl.POINTS, 0, verticesCount)
 }
 
-const drawConstellations = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['constellations'], date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawConstellations = (gl: WebGL2RenderingContext, { program, buffers, verticesCount }: ShaderProgramsMap['constellations'], date: Date, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
@@ -195,7 +206,7 @@ const drawConstellations = (gl: WebGL2RenderingContext, { program, buffers }: Sh
     decimalYear(date)
   )
 
-  gl.drawArrays(gl.LINES, 0, constellationLines.length / 2)
+  gl.drawArrays(gl.LINES, 0, verticesCount)
 }
 
 const drawGround = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['ground'], projectionMatrix: mat4, modelViewMatrix: mat4) => {
@@ -221,8 +232,10 @@ const drawGround = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProg
   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
 }
 
-const drawSatellites = (gl: WebGL2RenderingContext, program: WebGLProgram, propagatedSatellites: Float32Array, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawSatellites = (gl: WebGL2RenderingContext, { program, texture }: ShaderProgramsMap['satellites'], propagatedSatellites: Float32Array, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
+
+  gl.bindTexture(gl.TEXTURE_2D, texture)
 
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
@@ -248,7 +261,7 @@ const drawSatellites = (gl: WebGL2RenderingContext, program: WebGLProgram, propa
   gl.drawArrays(gl.POINTS, 0, propagatedSatellites.length / 3)
 }
 
-const azimuthalGrid = Array.from({ length: 9 }, (item, index) => {
+const azimuthalGrid = new Float32Array(Array.from({ length: 9 }, (item, index) => {
   const angleRad = index * 20 * (Math.PI / 180)
   const x = Math.sin(angleRad)
   const z = Math.cos(angleRad)
@@ -258,14 +271,14 @@ const azimuthalGrid = Array.from({ length: 9 }, (item, index) => {
     0, 1, 0,
     -x, 0, -z
   ]
-}).flat()
+}).flat())
 
 export const drawGrid = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
   const positionBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(azimuthalGrid), gl.STATIC_DRAW)
+  gl.bufferData(gl.ARRAY_BUFFER, azimuthalGrid, gl.STATIC_DRAW)
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
@@ -282,14 +295,14 @@ export const drawGrid = (gl: WebGL2RenderingContext, program: WebGLProgram, proj
     false,
     modelViewMatrix)
 
-  gl.drawArrays(gl.LINES, 0, constellationLines.length / 3)
+  // gl.drawArrays(gl.LINES, 0, constellationLines.length / 3)
 }
+
+const raToRad = (hours: number, minutes: number, seconds: number) => (hours + minutes / 60 + seconds / 3600) * 15 * Math.PI / 180
+const decToRad = (degrees: number, minutes: number, seconds: number) => (degrees + minutes / 60 + seconds / 3600) * Math.PI / 180
 
 export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
-
-  const raToRad = (hours: number, minutes: number, seconds: number) => (hours + minutes / 60 + seconds / 3600) * 15 * Math.PI / 180
-  const decToRad = (degrees: number, minutes: number, seconds: number) => (degrees + minutes / 60 + seconds / 3600) * Math.PI / 180
 
   const debugPointPositions = [
     // ...([
@@ -318,6 +331,11 @@ export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, pro
     false,
     modelViewMatrix)
   gl.drawArrays(gl.POINTS, 0, debugPointPositions.length / 3)
+}
+
+const drawNames = (gl: WebGL2RenderingContext, { program, texture }: ShaderProgramsMap['satelliteNames'], projectionMatrix: mat4, modelViewMatrix: mat4) => {
+  gl.useProgram(program)
+  gl.bindTexture(gl.TEXTURE_2D, texture)
 }
 
 export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date, propagatedSatellites }: {
@@ -364,7 +382,8 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   drawConstellations(gl, shaderPrograms.constellations, date, projectionMatrix, skyViewMatrix)
   // drawGrid(gl, shaderPrograms.grid, projectionMatrix, groundViewMatrix)
   drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
-  drawSatellites(gl, shaderPrograms.satellites.program, propagatedSatellites, projectionMatrix, groundViewMatrix)
+  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites, projectionMatrix, groundViewMatrix)
   drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
+  drawNames(gl, shaderPrograms.satelliteNames, projectionMatrix, skyViewMatrix)
   // drawDebug(gl, shaderPrograms.debug, projectionMatrix, skyViewMatrix)
 }
