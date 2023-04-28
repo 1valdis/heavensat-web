@@ -1,17 +1,22 @@
 {
   "files": {
-    "main.css": "/heavensat-web/static/css/main.0b907eda.css",
-    "main.js": "/heavensat-web/static/js/main.8347bcfa.js",
+    "main.css": "/heavensat-web/static/css/main.bbcf5fe4.css",
+    "main.js": "/heavensat-web/static/js/main.e825da0f.js",
     "static/js/282.74bf7554.chunk.js": "/heavensat-web/static/js/282.74bf7554.chunk.js",
+    "static/js/721.e615488c.chunk.js": "/heavensat-web/static/js/721.e615488c.chunk.js",
+    "static/js/223.d34d4e1c.chunk.js": "/heavensat-web/static/js/223.d34d4e1c.chunk.js",
+    "static/js/317.ced2d090.chunk.js": "/heavensat-web/static/js/317.ced2d090.chunk.js",
+    "static/js/162.86af5cea.chunk.js": "/heavensat-web/static/js/162.86af5cea.chunk.js",
     "static/js/719.6f742264.chunk.js": "/heavensat-web/static/js/719.6f742264.chunk.js",
+    "static/media/msdf.png": "/heavensat-web/static/media/msdf.fe535e7a04a05a9855ef.png",
     "index.html": "/heavensat-web/index.html",
-    "main.0b907eda.css.map": "/heavensat-web/static/css/main.0b907eda.css.map",
-    "main.8347bcfa.js.map": "/heavensat-web/static/js/main.8347bcfa.js.map",
+    "main.bbcf5fe4.css.map": "/heavensat-web/static/css/main.bbcf5fe4.css.map",
+    "main.e825da0f.js.map": "/heavensat-web/static/js/main.e825da0f.js.map",
     "282.74bf7554.chunk.js.map": "/heavensat-web/static/js/282.74bf7554.chunk.js.map",
     "719.6f742264.chunk.js.map": "/heavensat-web/static/js/719.6f742264.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.0b907eda.css",
-    "static/js/main.8347bcfa.js"
+    "static/css/main.bbcf5fe4.css",
+    "static/js/main.e825da0f.js"
   ]
 }
