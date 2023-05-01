@@ -24,6 +24,18 @@ function concat (arrays: Float32Array[]) {
   return result
 }
 
+function duplicate (array: Float32Array, times: number) {
+  const newLength = array.length * times
+
+  const result = new Float32Array(newLength)
+
+  for (let i = 0; i < times; i++) {
+    result.set(array, i * array.length)
+  }
+
+  return result
+}
+
 type ParametersExceptFirst<F> =
    F extends (arg0: any, ...rest: infer R) => any ? R : never;
 
@@ -98,9 +110,13 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
     })
 
     const successful = (positions.filter((position) => position.cartesian) as {norad: string, cartesian: [number, number, number]}[]).filter(position => position.cartesian[1] > 0)
-    const positionsArray = new Float32Array(successful.flatMap(position => position.cartesian!))
+    const positionsArray = concat(successful.map(position => new Float32Array(position.cartesian!)))
 
-    const textsOrigins = concat(successful.map(satellite => Float32Array.from({ length: 3 * 6 * geometriesMap.get(satellite.norad)!.chars.length }, (v, i) => satellite.cartesian[i % 3]!)))
+    const textsOrigins = concat(
+      successful.map(
+        satellite => duplicate(new Float32Array(satellite.cartesian), 6 * geometriesMap.get(satellite.norad)!.chars.length)
+      )
+    )
     const textsPositions = concat(successful.map(satellite => geometriesPositionsMap.get(satellite.norad)!))
     const textsUVCoords = concat(successful.map(satellite => geometriesUVCoordsMap.get(satellite.norad)!))
     // eslint-disable-next-line no-debugger
