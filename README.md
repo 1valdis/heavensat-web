@@ -5,11 +5,17 @@ An app to see satellites and their trajectories in the sky, and maybe also calcu
 - [x] Stars, constellations, basic controls
 - [x] Geographically and time wise correct sky
 - [x] Account for Earth precession
-- [x] Satellites
+- [x] Satellites with names
+- [ ] Clickability
 - [ ] Sun, moon
 - [ ] Planets
 - [ ] Not simply dark but correctly colored sky gradient
 - [ ] Local storage for satellite databases, and persistent settings
+
+## Credits
+- Hipparcos catalog: [gmiller123456/hip2000](https://github.com/gmiller123456/hip2000) magnitude 8 file, with small corrections to be valid JSON
+- Satellite TLE parsing and propagation: [shashwatak/satellite-js](https://github.com/shashwatak/satellite-js)
+- Constellation lines - from Stellarium
 
 ## What did ChatGPT do for this app? In roughly chronological order
 - Suggested to draw stars as a sphere in 3D space
