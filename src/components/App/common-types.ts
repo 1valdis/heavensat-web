@@ -4,7 +4,7 @@ export type Location = {latitude: number, longitude: number, altitude: number}
 export type Satellite = {
   name: string
   norad: string
-  tleLines: [string, string]
+  '3leLines': [string, string, string]
 }
 export type PropagatedSatellite = {
   norad: string

@@ -35,15 +35,15 @@ function App () {
       satellites.push({
         name: catalogLines[i]!.slice(2),
         norad: catalogLines[i + 1]!.slice(2, 7),
-        tleLines: [catalogLines[i + 1]!, catalogLines[i + 2]!]
+        '3leLines': [catalogLines[i]!, catalogLines[i + 1]!, catalogLines[i + 2]!]
       })
     }
     return satellites
   })
 
   useEffect(() => {
-    propagator.init(satellites)
-  }, [satellites])
+    propagator.init(satellites, assets.msdfDefinition)
+  }, [satellites, assets])
 
   useEffect(() => {
     propagator.process(date, location)

@@ -1,4 +1,5 @@
 import { Location } from './common-types'
+import type MsdfDefinition from './msdf-definition.json'
 
 export type BasicEvent = {
   queryId: string
@@ -6,7 +7,8 @@ export type BasicEvent = {
 
 export type InitQuery = BasicEvent & {
   type: 'init',
-  tles: Array<[string, string]>
+  '3LEs': Array<[string, string, string]>,
+  msdfDefinition: typeof MsdfDefinition
 }
 
 export type PropagateQuery = BasicEvent & {
@@ -26,7 +28,10 @@ export type PropagateAnswer = BasicEvent & {
   type: 'process',
   result: {
     failedNorads: string[],
-    positionsOfTheRest: Float32Array
+    propagatedPositions: Float32Array
+    textsOrigins: Float32Array
+    textsPositions: Float32Array,
+    textsUVCoords: Float32Array
   }
 }
 

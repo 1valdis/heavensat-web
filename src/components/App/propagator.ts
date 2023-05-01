@@ -2,6 +2,7 @@
 import { InitQuery, PropagateQuery, WorkerAnswer } from './message-types.js'
 import { Location, Satellite } from './common-types'
 import { chunkify } from './chunkify'
+import type MsdfDefinition from './msdf-definition.json'
 
 interface StateEventMap {
   'propagate-result': CustomEvent;
@@ -28,10 +29,16 @@ class Propagator extends typedEventTarget {
   private latestInitializeQuery: InitQuery | null = null
   private busy = false
 
-  #propagated: Float32Array = new Float32Array(0)
+  #propagated: PropagationResults = {
+    propagatedPositions: new Float32Array(0),
+    textsOrigins: new Float32Array(0),
+    textsPositions: new Float32Array(0),
+    textsUVCoords: new Float32Array(0)
+  }
+
   #failedNorads: string[] = []
 
-  public get propagated (): Float32Array {
+  public get propagated (): PropagationResults {
     return this.#propagated
   }
 
@@ -48,8 +55,9 @@ class Propagator extends typedEventTarget {
       }
       if (event.data.type === 'process') {
         this.busy = false
-        this.#failedNorads = event.data.result.failedNorads
-        this.#propagated = event.data.result.positionsOfTheRest
+        const { failedNorads, ...rest } = event.data.result
+        this.#failedNorads = failedNorads
+        this.#propagated = rest
         this.dispatchEvent(new CustomEvent('propagate-result'))
         if (event.data.queryId !== this.latestPropagateQuery?.queryId) {
           this.worker.postMessage(this.latestPropagateQuery)
@@ -60,11 +68,12 @@ class Propagator extends typedEventTarget {
     this.worker.onerror = console.log
   }
 
-  init (satellites: Satellite[]) {
+  init (satellites: Satellite[], msdfDefinition: typeof MsdfDefinition) {
     this.latestInitializeQuery = {
       type: 'init',
       queryId: crypto.randomUUID(),
-      tles: satellites.map(sat => sat.tleLines)
+      '3LEs': satellites.map(sat => sat['3leLines']),
+      msdfDefinition
     }
     this.worker.postMessage(this.latestInitializeQuery)
   }
@@ -83,6 +92,13 @@ class Propagator extends typedEventTarget {
   }
 }
 
+export type PropagationResults = {
+  propagatedPositions: Float32Array,
+  textsOrigins: Float32Array,
+  textsPositions: Float32Array,
+  textsUVCoords: Float32Array
+}
+
 export class ConcurrentPropagator extends typedEventTarget {
   private workers: Array<{
     propagator: Propagator,
@@ -91,13 +107,22 @@ export class ConcurrentPropagator extends typedEventTarget {
       const propagator = new Propagator()
       propagator.addEventListener('propagate-result', () => {
         this.dispatchEvent(new CustomEvent('propagate-result'))
-        const resultArray = new Float32Array(this.workers.reduce((acc, current) => acc + current.propagator.propagated.length, 0))
-        let currentOffset = 0
-        this.workers.forEach(worker => {
-          resultArray.set(worker.propagator.propagated, currentOffset)
-          currentOffset += worker.propagator.propagated.length
+        const keysToConcatenate = ['propagatedPositions', 'textsOrigins', 'textsPositions', 'textsUVCoords'] as const
+        const resultArrays = keysToConcatenate.map(key => {
+          const resultArray = new Float32Array(this.workers.reduce((acc, current) => acc + current.propagator.propagated[key].length, 0))
+          let currentOffset = 0
+          this.workers.forEach(worker => {
+            resultArray.set(worker.propagator.propagated[key], currentOffset)
+            currentOffset += worker.propagator.propagated[key].length
+          })
+          return resultArray
         })
-        this.#propagated = resultArray
+        this.#propagated = {
+          propagatedPositions: resultArrays[0]!,
+          textsOrigins: resultArrays[1]!,
+          textsPositions: resultArrays[2]!,
+          textsUVCoords: resultArrays[3]!
+        }
       })
       return {
         propagator,
@@ -105,9 +130,14 @@ export class ConcurrentPropagator extends typedEventTarget {
       }
     })
 
-  #propagated: Float32Array = new Float32Array(0)
+  #propagated: PropagationResults = {
+    propagatedPositions: new Float32Array(0),
+    textsOrigins: new Float32Array(0),
+    textsPositions: new Float32Array(0),
+    textsUVCoords: new Float32Array(0)
+  }
 
-  public get propagated (): Float32Array {
+  public get propagated (): PropagationResults {
     return this.#propagated
   }
 
@@ -115,11 +145,11 @@ export class ConcurrentPropagator extends typedEventTarget {
     return this.workers.flatMap(worker => worker.propagator.failedNorads)
   }
 
-  init (satellites: Satellite[]) {
+  init (satellites: Satellite[], msdfDefinition: typeof MsdfDefinition) {
     const chunks = chunkify(satellites, this.workers.length)
 
     this.workers.forEach((worker, index) => {
-      worker.propagator.init(chunks[index]!)
+      worker.propagator.init(chunks[index]!, msdfDefinition)
       worker.assignedSatellites = chunks[index]!
     })
   }

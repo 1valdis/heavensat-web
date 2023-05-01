@@ -119,7 +119,7 @@ export const groundFragmentSource = `#version 300 es
   out vec4 groundColor;
 
   void main() {
-    groundColor = vec4(0.1, 0.1, 0.1, 0.8);
+    groundColor = vec4(0.15, 0.09, 0.09, 1.0);
   }
 `
 
@@ -202,17 +202,28 @@ export const debugFragmentSource = `#version 300 es
 
 export const textVertexShader = `#version 300 es
   precision highp float;
+  uniform sampler2D u_spriteTexture;
   uniform mat4 u_projectionMatrix;
   uniform mat4 u_modelViewMatrix;
+  uniform vec2 u_viewportInPixels;
+  uniform float size;
 
-  in vec3 a_position;
-  in vec2 texCoord;
-  
+  in vec2 a_position;
+  in vec4 a_origin;
+  in vec2 a_uvCoord;
+  out vec4 color;
+
   out vec2 uvCoord;
 
   void main() {
-    uvCoord = vec2(1.0-texCoord.x, texCoord.y);
-    gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(a_position, 1.0);
+    ivec2 spriteSize = textureSize(u_spriteTexture, 0);
+    vec4 projectedOriginKek = u_projectionMatrix * u_modelViewMatrix * a_origin;
+    vec4 projectedOrigin = projectedOriginKek / abs(projectedOriginKek.w);
+    uvCoord = vec2(a_uvCoord.x / float(textureSize(u_spriteTexture, 0).x), a_uvCoord.y / float(textureSize(u_spriteTexture, 0).y));
+    if (spriteSize.y == 512) {
+      color = vec4(1.0, 0.0, 0.0, 1.0);
+    }
+    gl_Position = vec4(projectedOrigin.x + (a_position.x / u_viewportInPixels.x / 24.0 * size), projectedOrigin.y - (a_position.y / u_viewportInPixels.y / 24.0 * size), projectedOrigin.z, projectedOrigin.w);
   }
 `
 
@@ -240,6 +251,6 @@ export const textFragmentShader = `#version 300 es
     float pxDist = screenPxRange() * (dist - 0.5);
     float opacity = clamp(pxDist + 0.5, 0.0, 1.0);
 
-    outColor = vec4(1.0, 1.0, 0.0, opacity);
+    outColor = vec4(0.0, 1.0, 0.0, opacity);
   }
 `

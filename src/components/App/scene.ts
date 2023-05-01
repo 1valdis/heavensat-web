@@ -1,11 +1,11 @@
 import { mat4 } from 'gl-matrix'
 import { bvToRgb, decimalYear, degreesToRad, raDecToCartesian } from './celestial'
 import { initShaderProgram } from './webgl'
-import { groundFragmentSource, groundVertexSource, constellationFragmentSource, constellationVertexSource, satelliteFragmentSource, satelliteVertexSource, starFragmentSource, starVertexSource, gridLineVertexSource, gridLineFragmentSource, debugVertexSource, debugFragmentSource, skyVertexSource, skyFragmentSource, textFragmentShader, textVertexShader } from './shaders'
-// import * as satellitewasm from 'assemblyscript-satellitejs'
+import { groundFragmentSource, groundVertexSource, constellationFragmentSource, constellationVertexSource, satelliteFragmentSource, satelliteVertexSource, starFragmentSource, starVertexSource, gridLineVertexSource, gridLineFragmentSource, textFragmentShader, textVertexShader } from './shaders'
 import * as satellite from 'satellite.js'
 import { Viewport, Panning, Location, HIPStar } from './common-types'
-import { Assets } from './assets-loader.js'
+import { Assets } from './assets-loader'
+import { PropagationResults } from './propagator'
 
 export type ShaderProgramsMap = {
   stars: {
@@ -81,6 +81,8 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
   gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, textTexture)
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, assets.textures.text.width, assets.textures.text.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, assets.textures.text)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
   const starsPositionBuffer = gl.createBuffer()!
   gl.bindBuffer(gl.ARRAY_BUFFER, starsPositionBuffer)
@@ -333,9 +335,50 @@ export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, pro
   gl.drawArrays(gl.POINTS, 0, debugPointPositions.length / 3)
 }
 
-const drawNames = (gl: WebGL2RenderingContext, { program, texture }: ShaderProgramsMap['satelliteNames'], projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawNames = (gl: WebGL2RenderingContext, { program, texture }: ShaderProgramsMap['satelliteNames'], propagationResults: PropagationResults, projectionMatrix: mat4, modelViewMatrix: mat4, viewport: Viewport) => {
   gl.useProgram(program)
+  gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, texture)
+
+  const textureLocation = gl.getUniformLocation(program, 'u_spriteTexture')
+  gl.uniform1i(textureLocation, 0)
+  const viewportInPixelsLocation = gl.getUniformLocation(program, 'u_viewportInPixels')
+  gl.uniform2f(viewportInPixelsLocation, viewport.x, viewport.y)
+  const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
+  gl.uniformMatrix4fv(
+    projectionLocation,
+    false,
+    projectionMatrix)
+  const modelViewLocation = gl.getUniformLocation(program, 'u_modelViewMatrix')
+  gl.uniformMatrix4fv(
+    modelViewLocation,
+    false,
+    modelViewMatrix)
+  const sizeLocation = gl.getUniformLocation(program, 'size')
+  gl.uniform1f(sizeLocation, 12 * window.devicePixelRatio)
+
+  const positionBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, propagationResults.textsPositions, gl.DYNAMIC_DRAW)
+  const positionLocation = gl.getAttribLocation(program, 'a_position')
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(positionLocation)
+
+  const uvCoordBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, uvCoordBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, propagationResults.textsUVCoords, gl.DYNAMIC_DRAW)
+  const uvCoordLocation = gl.getAttribLocation(program, 'a_uvCoord')
+  gl.vertexAttribPointer(uvCoordLocation, 2, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(uvCoordLocation)
+
+  const originCoordBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, originCoordBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, propagationResults.textsOrigins, gl.DYNAMIC_DRAW)
+  const originCoordLocation = gl.getAttribLocation(program, 'a_origin')
+  gl.vertexAttribPointer(originCoordLocation, 3, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(originCoordLocation)
+
+  gl.drawArrays(gl.TRIANGLES, 0, propagationResults.textsPositions.length / 2)
 }
 
 export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date, propagatedSatellites }: {
@@ -346,7 +389,7 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   location: Location;
   date: Date
   panning: Panning;
-  propagatedSatellites: Float32Array
+  propagatedSatellites: PropagationResults
 }) => {
   gl.clear(gl.COLOR_BUFFER_BIT)
 
@@ -382,8 +425,8 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   drawConstellations(gl, shaderPrograms.constellations, date, projectionMatrix, skyViewMatrix)
   // drawGrid(gl, shaderPrograms.grid, projectionMatrix, groundViewMatrix)
   drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
-  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites, projectionMatrix, groundViewMatrix)
+  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, projectionMatrix, groundViewMatrix)
   drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
-  drawNames(gl, shaderPrograms.satelliteNames, projectionMatrix, skyViewMatrix)
+  drawNames(gl, shaderPrograms.satelliteNames, propagatedSatellites, projectionMatrix, groundViewMatrix, viewport)
   // drawDebug(gl, shaderPrograms.debug, projectionMatrix, skyViewMatrix)
 }
