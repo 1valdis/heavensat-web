@@ -1,6 +1,8 @@
-import type font from './msdf-definition.json'
+import type MsdfDefinitionFile from './assets/msdf-definition.json'
 
-type CharInfo = (typeof font)['chars'][0];
+export type MsdfDefinition = typeof MsdfDefinitionFile
+
+type CharInfo = MsdfDefinition['chars'][0];
 
 export type MsdfGeometry = {
   width: number;
@@ -15,7 +17,7 @@ export class MsdfGeometryBuilder {
   private charMap = new Map<string, CharInfo>()
   private kerningsMap = new Map<string, number>()
 
-  constructor (definition: typeof font) {
+  constructor (definition: MsdfDefinition) {
     definition.chars.forEach((char) => {
       this.charMap.set(char.char, char)
     })

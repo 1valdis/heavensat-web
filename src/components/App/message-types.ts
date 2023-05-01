@@ -1,5 +1,5 @@
 import { Location } from './common-types'
-import type MsdfDefinition from './msdf-definition.json'
+import { MsdfDefinition } from './msdf'
 
 export type BasicEvent = {
   queryId: string
@@ -8,7 +8,7 @@ export type BasicEvent = {
 export type InitQuery = BasicEvent & {
   type: 'init',
   '3LEs': Array<[string, string, string]>,
-  msdfDefinition: typeof MsdfDefinition
+  msdfDefinition: MsdfDefinition
 }
 
 export type PropagateQuery = BasicEvent & {

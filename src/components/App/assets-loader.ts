@@ -1,7 +1,7 @@
-import satelliteImage from './sat.png'
-import msdfImage from './msdf.png'
-import { HIPStarOriginal } from './common-types.js'
-import type MsdfDefinition from './msdf-definition.json'
+import satelliteImage from './assets/sat.png'
+import msdfImage from './assets/msdf.png'
+import { HIPStarOriginal } from './common-types'
+import type MsdfDefinition from './assets/msdf-definition.json'
 
 export type Assets = {
   textures: {
@@ -33,10 +33,10 @@ export function fetchAssets () {
   const fetching = Promise.all([
     loadImage(satelliteImage),
     loadImage(msdfImage),
-    import('../../hipparcos_8_concise.json'),
-    import('../../constellationLineship.json'),
-    import('./catalog.json'),
-    import('./msdf-definition.json')
+    import('./assets/hipparcos_8_concise.json'),
+    import('./assets/constellations.json'),
+    import('./assets/satellite-catalog.json'),
+    import('./assets/msdf-definition.json')
   ]).then(([satelliteLoaded, msdfLoaded, starCatalog, constellationLineship, satelliteCatalog, msdfDefinition]) => {
     status = 'fulfilled'
     assets = {

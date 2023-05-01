@@ -10,6 +10,7 @@ function lookAnglesToCartesian (elevation: number, azimuth: number): [number, nu
   return [y, z, x]
 }
 
+// faster concat of FLoat32Arrays, instead of spread syntax
 function concat (arrays: Float32Array[]) {
   const totalLength = arrays.reduce((acc, value) => acc + value.length, 0)
 
@@ -24,6 +25,7 @@ function concat (arrays: Float32Array[]) {
   return result
 }
 
+// fast duplicate of Float32Array, useful for same data for multiple vertices
 function duplicate (array: Float32Array, times: number) {
   const newLength = array.length * times
 

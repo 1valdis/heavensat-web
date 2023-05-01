@@ -1,8 +1,8 @@
 /* eslint-disable sonarjs/no-duplicate-string */
-import { InitQuery, PropagateQuery, WorkerAnswer } from './message-types.js'
+import { InitQuery, PropagateQuery, WorkerAnswer } from './message-types'
 import { Location, Satellite } from './common-types'
 import { chunkify } from './chunkify'
-import type MsdfDefinition from './msdf-definition.json'
+import type { MsdfDefinition } from './msdf'
 
 interface StateEventMap {
   'propagate-result': CustomEvent;
@@ -68,7 +68,7 @@ class Propagator extends typedEventTarget {
     this.worker.onerror = console.log
   }
 
-  init (satellites: Satellite[], msdfDefinition: typeof MsdfDefinition) {
+  init (satellites: Satellite[], msdfDefinition: MsdfDefinition) {
     this.latestInitializeQuery = {
       type: 'init',
       queryId: crypto.randomUUID(),
@@ -145,7 +145,7 @@ export class ConcurrentPropagator extends typedEventTarget {
     return this.workers.flatMap(worker => worker.propagator.failedNorads)
   }
 
-  init (satellites: Satellite[], msdfDefinition: typeof MsdfDefinition) {
+  init (satellites: Satellite[], msdfDefinition: MsdfDefinition) {
     const chunks = chunkify(satellites, this.workers.length)
 
     this.workers.forEach((worker, index) => {
