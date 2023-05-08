@@ -13,7 +13,7 @@ import { getAssets } from './assets-loader'
 
 const maxFov = 120
 const minFov = 0.5
-const zoomSensitivity = 0.3
+const zoomSensitivity = 0.0025
 
 const propagator = new ConcurrentPropagator()
 
@@ -79,7 +79,7 @@ function App () {
   }, [fov])
   const updateZoomByDelta = useCallback((delta: number) => {
     setFov((fov) => {
-      const newFov = fov + (zoomSensitivity * fov * (Math.abs(delta) / delta))
+      const newFov = fov + (zoomSensitivity * fov * delta)
       return Math.max(minFov, Math.min(newFov, maxFov))
     })
   }, [])
