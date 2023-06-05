@@ -39,6 +39,16 @@ export type ShaderProgramsMap = {
     texture: WebGLTexture,
   }
   grid: WebGLProgram,
+  // starsForPicking: {
+  //   program: WebGLProgram,
+  //   buffers: {
+  //     positions: WebGLBuffer,
+  //     sizes: WebGLBuffer
+  //   },
+  // },
+  // satellitesForPicking: {
+  //   program: WebGLProgram,
+  // },
   // debug: WebGLProgram
 }
 
@@ -119,6 +129,9 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
       },
       verticesCount: starPositions.length / 2
     },
+    // starsForPicking: {
+    //   program: initShaderProgram(gl, )
+    // },
     constellations: {
       program: initShaderProgram(gl, constellationVertexSource, constellationFragmentSource),
       buffers: {
@@ -381,7 +394,54 @@ const drawNames = (gl: WebGL2RenderingContext, { program, texture }: ShaderProgr
   gl.drawArrays(gl.TRIANGLES, 0, propagationResults.textsPositions.length / 2)
 }
 
-export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date, propagatedSatellites }: {
+// const drawSkyGradient = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['skyGradient'], projectionMatrix: mat4, modelViewMatrix: mat4) => {
+//   gl.useProgram(program)
+
+//   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
+//   const positionLocation = gl.getAttribLocation(program, 'a_position')
+//   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
+//   gl.enableVertexAttribArray(positionLocation)
+
+//   const sunPositionLocation = gl.getUniformLocation(program, 'u_sunPosition')
+//   gl.uniform3fv(sunPositionLocation, raDecToCartesian(raToRad(2, 7, 19), decToRad(12, 52, 31)))
+
+//   const inverseProjectionMatrix = mat4.create()
+//   mat4.invert(inverseProjectionMatrix, projectionMatrix)
+//   const projectionLocation = gl.getUniformLocation(program, 'u_invProjectionMatrix')
+//   gl.uniformMatrix4fv(
+//     projectionLocation,
+//     false,
+//     inverseProjectionMatrix)
+
+//   const inverseModelViewMatrix = mat4.create()
+//   mat4.invert(inverseModelViewMatrix, modelViewMatrix)
+//   const modelViewLocation = gl.getUniformLocation(program, 'u_invModelViewMatrix')
+//   gl.uniformMatrix4fv(
+//     modelViewLocation,
+//     false,
+//     inverseModelViewMatrix)
+
+//   const invertedMatrix = mat4.clone(projectionMatrix)
+//   mat4.multiply(invertedMatrix, projectionMatrix, modelViewMatrix)
+//   mat4.invert(invertedMatrix, invertedMatrix)
+//   const invertedLocation = gl.getUniformLocation(program, 'u_inverted')
+//   gl.uniformMatrix4fv(
+//     invertedLocation,
+//     false,
+//     invertedMatrix)
+
+//   const [, , width, height] = gl.getParameter(gl.VIEWPORT)
+
+//   const viewportLocation = gl.getUniformLocation(program, 'u_viewport')
+//   gl.uniform2f(
+//     viewportLocation,
+//     width, height
+//   )
+
+//   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
+// }
+
+export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date, propagatedSatellites, satelliteNamesVisible }: {
   gl: WebGL2RenderingContext;
   shaderPrograms: ShaderProgramsMap;
   viewport: Viewport;
@@ -389,10 +449,61 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   location: Location;
   date: Date
   panning: Panning;
-  propagatedSatellites: PropagationResults
+  propagatedSatellites: PropagationResults,
+  satelliteNamesVisible: boolean
 }) => {
   gl.clear(gl.COLOR_BUFFER_BIT)
 
+  const { projectionMatrix, skyViewMatrix, groundViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
+
+  // drawSkyGradient(gl, shaderPrograms.skyGradient, projectionMatrix, skyViewMatrix)
+  drawConstellations(gl, shaderPrograms.constellations, date, projectionMatrix, skyViewMatrix)
+  // drawGrid(gl, shaderPrograms.grid, projectionMatrix, groundViewMatrix)
+  drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
+  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, projectionMatrix, groundViewMatrix)
+  drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
+  if (satelliteNamesVisible) {
+    drawNames(gl, shaderPrograms.satelliteNames, propagatedSatellites, projectionMatrix, groundViewMatrix, viewport)
+  }
+  // drawDebug(gl, shaderPrograms.debug, projectionMatrix, skyViewMatrix)
+}
+
+export const selectSceneObject = ({ gl, point, viewport, fov, location, panning, date }: {
+  gl: WebGL2RenderingContext,
+  point: { x: number, y: number },
+  viewport: Viewport;
+  fov: number
+  location: Location
+  date: Date
+  panning: Panning }) => {
+  const pickingFramebuffer = gl.createFramebuffer()
+  gl.bindFramebuffer(gl.FRAMEBUFFER, pickingFramebuffer)
+
+  const pickingTexture = gl.createTexture()
+  gl.bindTexture(gl.TEXTURE_2D, pickingTexture)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickingTexture, 0)
+
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+  const { projectionMatrix, skyViewMatrix, groundViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
+
+  // drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
+  // drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, projectionMatrix, groundViewMatrix)
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.bindTexture(gl.TEXTURE_2D, null)
+}
+
+const createMatrices = ({ viewport, fov, location, panning, date }: {
+  viewport: Viewport;
+  fov: number;
+  location: Location;
+  date: Date
+  panning: Panning;
+}): { projectionMatrix: mat4, skyViewMatrix: mat4, groundViewMatrix: mat4 } => {
   const projectionMatrix = mat4.create()
 
   mat4.perspective(projectionMatrix,
@@ -422,11 +533,9 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   const groundViewMatrix = mat4.create()
   mat4.multiply(groundViewMatrix, panningMatrix, groundViewMatrix)
 
-  drawConstellations(gl, shaderPrograms.constellations, date, projectionMatrix, skyViewMatrix)
-  // drawGrid(gl, shaderPrograms.grid, projectionMatrix, groundViewMatrix)
-  drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
-  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, projectionMatrix, groundViewMatrix)
-  drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
-  drawNames(gl, shaderPrograms.satelliteNames, propagatedSatellites, projectionMatrix, groundViewMatrix, viewport)
-  // drawDebug(gl, shaderPrograms.debug, projectionMatrix, skyViewMatrix)
+  return {
+    projectionMatrix,
+    skyViewMatrix,
+    groundViewMatrix
+  }
 }

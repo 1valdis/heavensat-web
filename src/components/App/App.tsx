@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, MouseEvent as ReactMouseEvent } from 'react'
 import './App.css'
 import { degreesToRad } from './celestial'
 import useResizeObserver from './use-resize-observer'
 import { useLatest } from './use-latest'
 import { useCameraControls } from './use-camera-controls'
-import { drawScene, setupShaderPrograms, ShaderProgramsMap } from './scene'
+import { drawScene, selectSceneObject, setupShaderPrograms, ShaderProgramsMap } from './scene'
 import { Menu } from '../Ui/Menu'
 import { useAnimationFrameLoop } from './use-animation-frame'
 import { Viewport, Location, Panning, Satellite } from './common-types'
@@ -25,6 +25,7 @@ function App () {
 
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0 })
   const [date, setDate] = useState(new Date())
+  const [satelliteNamesVisible, setSatelliteNamesVisible] = useState(true)
 
   const assets = getAssets()
 
@@ -141,13 +142,31 @@ function App () {
       location,
       date,
       panning,
-      propagatedSatellites
+      propagatedSatellites,
+      satelliteNamesVisible
     })
-  }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date, propagatedSatellites])
+  }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date, propagatedSatellites, satelliteNamesVisible])
+
+  const selectObject = useCallback((event: ReactMouseEvent<HTMLCanvasElement, MouseEvent>) => {
+    const gl = glRef.current
+    if (!gl) return
+    const { top, left } = event.currentTarget.getBoundingClientRect()
+    const [mouseX, mouseY] = [event.clientX, event.clientY]
+    const [x, y] = [Math.floor(mouseX - left), Math.floor(mouseY - top)]
+    selectSceneObject({
+      gl,
+      point: { x, y },
+      viewport,
+      fov,
+      location,
+      date,
+      panning
+    })
+  }, [])
 
   return (
     <div className="App">
-      <canvas id="sky" ref={ref} width={viewport.x} height={viewport.y}></canvas>
+      <canvas id="sky" ref={ref} width={viewport.x} height={viewport.y} onClick={selectObject}></canvas>
       <Menu
         date={date}
         setDate={setDate}
@@ -156,6 +175,8 @@ function App () {
         startRealtime={start}
         stopRealtime={stop}
         isRealtime={!isStopped}
+        switchSatelliteNamesVisibility={() => setSatelliteNamesVisible(current => !current)}
+        satelliteNamesVisible={satelliteNamesVisible}
         />
     </div>
   )

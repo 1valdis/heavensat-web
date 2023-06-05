@@ -11,9 +11,11 @@ export interface MenuProps {
   startRealtime: () => void
   stopRealtime: () => void
   isRealtime: boolean
+  switchSatelliteNamesVisibility: () => void
+  satelliteNamesVisible: boolean
 }
 
-export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime, stopRealtime, isRealtime }) => {
+export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime, stopRealtime, isRealtime, switchSatelliteNamesVisibility, satelliteNamesVisible }) => {
   const incrementDate = useCallback(() => {
     const newDate = new Date(date)
     newDate.setTime(newDate.getTime() + 1000)
@@ -34,10 +36,11 @@ export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime,
     )
   }, [setLocation])
   return <nav>
-    <label style={{ color: 'white' }}>{date.toISOString()}</label>
+    <label>{date.toISOString()}</label>
     <button onClick={incrementDate}>+1s</button>
     <button onClick={decrementDate}>-1s</button>
     <button onClick={updateLocation}>Locate</button>
     <button onClick={() => isRealtime ? stopRealtime() : startRealtime()}>{isRealtime ? 'Stop' : 'Start'}</button>
+    <label><input type='checkbox' onClick={switchSatelliteNamesVisibility} checked={satelliteNamesVisible}></input>Satellite names</label>
   </nav>
 }
