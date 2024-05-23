@@ -200,6 +200,57 @@ export const debugFragmentSource = `#version 300 es
   }
 `
 
+export const skyVertexSource = `#version 300 es
+  precision highp float;
+
+  in vec2 a_position;
+  out vec2 a_positionNDC;
+
+  void main() {
+    gl_Position = vec4(a_position, 0.0, 1.0);
+    a_positionNDC = a_position;
+  }
+`
+
+export const skyFragmentSource = `#version 300 es
+  #define M_PI 3.1415926535897932384626433832795
+  precision highp float;
+
+  uniform vec3 u_sunPosition;
+  uniform mat4 u_invViewMatrix;
+  uniform mat4 u_invProjectionMatrix;
+  uniform vec2 u_viewport;
+
+  out vec4 fragColor;
+
+  vec3 getSkyColor(float sunHeight) {
+    if (sunHeight < -0.1) {
+      return vec3(0.0, 0.0, 0.0);
+    } else if (sunHeight < 0.25) {
+      return vec3(1.0, 0.5, 0.0);
+    } else {
+      return vec3(0.0, 0.5, 1.0);
+    }
+  }
+
+  void main() {
+    vec2 ndcPos = (gl_FragCoord.xy / u_viewport.xy) * 2.0 - 1.0;
+    vec4 worldPos = u_invProjectionMatrix * vec4(ndcPos, 0.0, 1.0);
+    worldPos /= worldPos.w;
+    vec3 worldDirection = normalize((u_invViewMatrix * worldPos).xyz);
+
+    float sunHeight = u_sunPosition.y;
+    vec3 skyColor = getSkyColor(sunHeight);
+
+    float zenithAngle = acos(max(0.0, dot(worldDirection, u_sunPosition)));
+    float sunDistance = zenithAngle / M_PI;
+    float sunBrightness = smoothstep(0.0, 1.0, sunHeight * 2.0);
+    
+    vec3 finalColor = mix(skyColor, vec3(1.0), sunBrightness * (1.0 - sunDistance));
+    fragColor = vec4(finalColor, 1.0);
+  }
+`
+
 export const textVertexShader = `#version 300 es
   precision highp float;
   uniform sampler2D u_spriteTexture;
@@ -252,5 +303,97 @@ export const textFragmentShader = `#version 300 es
     float opacity = clamp(pxDist + 0.5, 0.0, 1.0);
 
     outColor = vec4(0.0, 1.0, 0.0, opacity);
+  }
+`
+
+export const starForPickingVertexSource = `#version 300 es
+  precision highp float;
+
+  in vec2 a_raDec;
+  in float a_size;
+  in vec4 a_color;
+
+  out vec4 v_color;
+  out float v_size;
+
+  uniform mat4 u_projectionMatrix;
+  uniform mat4 u_modelViewMatrix;
+  uniform float u_timeYears;
+
+  // https://astronomy.stackexchange.com/a/26835
+
+  vec2 accountForPrecession(vec2 raDec) {
+    float T = (u_timeYears - 2000.0) / 100.0;
+    float M = radians(1.2812323 * T + 0.0003879 * T * T + 0.0000101 * T * T * T);
+    float N = radians(0.5567530 * T - 0.0001185 * T * T + 0.0000116 * T * T * T);
+    return vec2(
+      M + N * sin(raDec[0]) * tan(raDec[1]) + raDec[0],
+      N * cos(raDec[0]) + raDec[1]
+    );
+  }
+
+  vec4 raDecToPosition(vec2 raDec) {
+    return vec4(
+      cos(raDec[0]) * cos(raDec[1]),
+      sin(raDec[0]) * cos(raDec[1]),
+      sin(raDec[1]),
+      1.0
+    );
+  }
+
+  void main() {
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * raDecToPosition(accountForPrecession(a_raDec));
+    gl_PointSize = a_size + 4.0;
+    v_color = a_color;
+    v_size = a_size;
+  }
+`
+
+export const starForPickingFragmentSource = `#version 300 es
+  precision highp float;
+
+  in vec4 v_color;
+  in float v_size;
+
+  out vec4 starColor;
+
+  void main() {
+    float radius = 0.5 * v_size;
+    vec2 coord = gl_PointCoord.xy - vec2(0.5, 0.5);
+    float distanceFromCenter = length(coord) * v_size;
+    float alpha = 1.0 - round(smoothstep(radius, radius, distanceFromCenter));
+    starColor = vec4(v_color.rgb, v_color.a * alpha);
+  }
+`
+
+export const satelliteForPickingVertexSource = `#version 300 es
+  precision highp float;
+
+  in vec4 a_position;
+  in vec4 a_color;
+
+  out vec4 v_color;
+
+  uniform float u_size;
+  uniform mat4 u_projectionMatrix;
+  uniform mat4 u_modelViewMatrix;
+
+  void main() {
+    gl_Position = u_projectionMatrix * u_modelViewMatrix * a_position;
+    gl_PointSize = u_size;
+    v_color = a_color;
+  }
+`
+
+export const satelliteForPickingFragmentSource = `#version 300 es
+  precision highp float;
+
+  in vec4 v_color;
+
+  out vec4 color;
+
+  void main() {
+    float clampedY = clamp((gl_PointCoord.y - 0.25) * 2.0, 0.0, 1.0);
+    color = v_color;
   }
 `

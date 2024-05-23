@@ -1,7 +1,7 @@
 import { mat4 } from 'gl-matrix'
 import { bvToRgb, decimalYear, degreesToRad, raDecToCartesian } from './celestial'
 import { initShaderProgram } from './webgl'
-import { groundFragmentSource, groundVertexSource, constellationFragmentSource, constellationVertexSource, satelliteFragmentSource, satelliteVertexSource, starFragmentSource, starVertexSource, gridLineVertexSource, gridLineFragmentSource, textFragmentShader, textVertexShader } from './shaders'
+import { groundFragmentSource, groundVertexSource, constellationFragmentSource, constellationVertexSource, satelliteFragmentSource, satelliteVertexSource, starFragmentSource, starVertexSource, gridLineVertexSource, gridLineFragmentSource, textFragmentShader, textVertexShader, starForPickingVertexSource, starForPickingFragmentSource, debugVertexSource, debugFragmentSource } from './shaders'
 import * as satellite from 'satellite.js'
 import { Viewport, Panning, Location, HIPStar } from './common-types'
 import { Assets } from './assets-loader'
@@ -39,17 +39,19 @@ export type ShaderProgramsMap = {
     texture: WebGLTexture,
   }
   grid: WebGLProgram,
-  // starsForPicking: {
-  //   program: WebGLProgram,
-  //   buffers: {
-  //     positions: WebGLBuffer,
-  //     sizes: WebGLBuffer
-  //   },
-  // },
-  // satellitesForPicking: {
-  //   program: WebGLProgram,
-  // },
-  // debug: WebGLProgram
+  starsForPicking: {
+    program: WebGLProgram,
+    buffers: {
+      positions: WebGLBuffer,
+      sizes: WebGLBuffer,
+      colors: WebGLBuffer
+    },
+    verticesCount: number,
+  },
+  satellitesForPicking: {
+    program: WebGLProgram,
+  },
+  debug: WebGLProgram
 }
 
 export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets): ShaderProgramsMap => {
@@ -74,7 +76,14 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
   const starPositions = new Float32Array(hipparcos.flatMap(star => star.raDec))
   const starSizes = new Float32Array(hipparcos.map(star => Math.max((10 - star.mag) * window.devicePixelRatio, 2)))
   const starColors = new Float32Array(hipparcos.flatMap(star => bvToRgb(star.bv)))
+  const starPickingColors = new Float32Array(hipparcos.flatMap(({ id }) => [
+    ((id >> 0) & 0xFF) / 0xFF,
+    ((id >> 8) & 0xFF) / 0xFF,
+    ((id >> 16) & 0xFF) / 0xFF,
+    ((id >> 24) & 0xFF) / 0xFF
+  ]))
 
+  // eslint-disable-next-line no-debugger
   gl.clearColor(0, 0, 0, 1)
   gl.enable(gl.BLEND)
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
@@ -106,6 +115,10 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
   gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, starColors, gl.STATIC_DRAW)
 
+  const starPickingColorBuffer = gl.createBuffer()!
+  gl.bindBuffer(gl.ARRAY_BUFFER, starPickingColorBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, starPickingColors, gl.STATIC_DRAW)
+
   const constellationPositionsBuffer = gl.createBuffer()!
   gl.bindBuffer(gl.ARRAY_BUFFER, constellationPositionsBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(constellationLines), gl.STATIC_DRAW)
@@ -119,6 +132,9 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
     -1, -0.0001, 1
   ]), gl.STATIC_DRAW)
 
+  // eslint-disable-next-line no-debugger
+  debugger
+
   return {
     stars: {
       program: initShaderProgram(gl, starVertexSource, starFragmentSource),
@@ -129,9 +145,18 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
       },
       verticesCount: starPositions.length / 2
     },
-    // starsForPicking: {
-    //   program: initShaderProgram(gl, )
-    // },
+    starsForPicking: {
+      program: initShaderProgram(gl, starForPickingVertexSource, starForPickingFragmentSource),
+      buffers: {
+        positions: starsPositionBuffer,
+        sizes: sizeBuffer,
+        colors: starPickingColorBuffer
+      },
+      verticesCount: starPositions.length / 2
+    },
+    satellitesForPicking: {
+      program: initShaderProgram(gl, satelliteVertexSource, satelliteFragmentSource)
+    },
     constellations: {
       program: initShaderProgram(gl, constellationVertexSource, constellationFragmentSource),
       buffers: {
@@ -153,8 +178,8 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
       program: initShaderProgram(gl, textVertexShader, textFragmentShader),
       texture: textTexture
     },
-    grid: initShaderProgram(gl, gridLineVertexSource, gridLineFragmentSource)
-    // debug: initShaderProgram(gl, debugVertexSource, debugFragmentSource)
+    grid: initShaderProgram(gl, gridLineVertexSource, gridLineFragmentSource),
+    debug: initShaderProgram(gl, debugVertexSource, debugFragmentSource)
   }
 }
 
@@ -316,7 +341,7 @@ export const drawGrid = (gl: WebGL2RenderingContext, program: WebGLProgram, proj
 const raToRad = (hours: number, minutes: number, seconds: number) => (hours + minutes / 60 + seconds / 3600) * 15 * Math.PI / 180
 const decToRad = (degrees: number, minutes: number, seconds: number) => (degrees + minutes / 60 + seconds / 3600) * Math.PI / 180
 
-export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4, point: [ra: number, dec: number]) => {
   gl.useProgram(program)
 
   const debugPointPositions = [
@@ -324,7 +349,8 @@ export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, pro
     //   [47.89689, 0.13530],
     //   [47.816, 1.282]
     // ] as const).flatMap((pair) => lookAnglesToCartesian(degreesToRad(pair[0]), degreesToRad(pair[1]))),
-    ...raDecToCartesian(raToRad(2, 31, 48.7), decToRad(89, 15, 51))
+    // ...raDecToCartesian(raToRad(2, 31, 48.7), decToRad(89, 15, 51))
+    ...raDecToCartesian(degreesToRad(point[0]), degreesToRad(point[1]))
   ]
 
   const positionBuffer = gl.createBuffer()
@@ -394,6 +420,14 @@ const drawNames = (gl: WebGL2RenderingContext, { program, texture }: ShaderProgr
   gl.drawArrays(gl.TRIANGLES, 0, propagationResults.textsPositions.length / 2)
 }
 
+const drawStarsForPicking = (gl: WebGL2RenderingContext, { program }: ShaderProgramsMap['starsForPicking'], propagatedSatellites: Float32Array, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+
+}
+
+const drawSatellitesForPicking = (gl: WebGL2RenderingContext, { program }: ShaderProgramsMap['satellitesForPicking'], propagatedSatellites: Float32Array, projectionMatrix: mat4, modelViewMatrix: mat4, offset: number) => {
+
+}
+
 // const drawSkyGradient = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['skyGradient'], projectionMatrix: mat4, modelViewMatrix: mat4) => {
 //   gl.useProgram(program)
 
@@ -441,62 +475,6 @@ const drawNames = (gl: WebGL2RenderingContext, { program, texture }: ShaderProgr
 //   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
 // }
 
-export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date, propagatedSatellites, satelliteNamesVisible }: {
-  gl: WebGL2RenderingContext;
-  shaderPrograms: ShaderProgramsMap;
-  viewport: Viewport;
-  fov: number;
-  location: Location;
-  date: Date
-  panning: Panning;
-  propagatedSatellites: PropagationResults,
-  satelliteNamesVisible: boolean
-}) => {
-  gl.clear(gl.COLOR_BUFFER_BIT)
-
-  const { projectionMatrix, skyViewMatrix, groundViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
-
-  // drawSkyGradient(gl, shaderPrograms.skyGradient, projectionMatrix, skyViewMatrix)
-  drawConstellations(gl, shaderPrograms.constellations, date, projectionMatrix, skyViewMatrix)
-  // drawGrid(gl, shaderPrograms.grid, projectionMatrix, groundViewMatrix)
-  drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
-  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, projectionMatrix, groundViewMatrix)
-  drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
-  if (satelliteNamesVisible) {
-    drawNames(gl, shaderPrograms.satelliteNames, propagatedSatellites, projectionMatrix, groundViewMatrix, viewport)
-  }
-  // drawDebug(gl, shaderPrograms.debug, projectionMatrix, skyViewMatrix)
-}
-
-export const selectSceneObject = ({ gl, point, viewport, fov, location, panning, date }: {
-  gl: WebGL2RenderingContext,
-  point: { x: number, y: number },
-  viewport: Viewport;
-  fov: number
-  location: Location
-  date: Date
-  panning: Panning }) => {
-  const pickingFramebuffer = gl.createFramebuffer()
-  gl.bindFramebuffer(gl.FRAMEBUFFER, pickingFramebuffer)
-
-  const pickingTexture = gl.createTexture()
-  gl.bindTexture(gl.TEXTURE_2D, pickingTexture)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickingTexture, 0)
-
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-  const { projectionMatrix, skyViewMatrix, groundViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
-
-  // drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
-  // drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, projectionMatrix, groundViewMatrix)
-
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-  gl.bindTexture(gl.TEXTURE_2D, null)
-}
-
 const createMatrices = ({ viewport, fov, location, panning, date }: {
   viewport: Viewport;
   fov: number;
@@ -538,4 +516,138 @@ const createMatrices = ({ viewport, fov, location, panning, date }: {
     skyViewMatrix,
     groundViewMatrix
   }
+}
+
+export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date, propagatedSatellites, satelliteNamesVisible, selectedStarCoords }: {
+  gl: WebGL2RenderingContext;
+  shaderPrograms: ShaderProgramsMap;
+  viewport: Viewport;
+  fov: number;
+  location: Location;
+  date: Date
+  panning: Panning;
+  propagatedSatellites: PropagationResults,
+  satelliteNamesVisible: boolean,
+  selectedStarCoords: null | [ra: number, dec: number]
+}) => {
+  gl.clear(gl.COLOR_BUFFER_BIT)
+
+  const { projectionMatrix, skyViewMatrix, groundViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
+
+  // drawSkyGradient(gl, shaderPrograms.skyGradient, projectionMatrix, skyViewMatrix)
+  drawConstellations(gl, shaderPrograms.constellations, date, projectionMatrix, skyViewMatrix)
+  // drawGrid(gl, shaderPrograms.grid, projectionMatrix, groundViewMatrix)
+  drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
+  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, projectionMatrix, groundViewMatrix)
+  drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
+  if (satelliteNamesVisible) {
+    drawNames(gl, shaderPrograms.satelliteNames, propagatedSatellites, projectionMatrix, groundViewMatrix, viewport)
+  }
+  if (selectedStarCoords) {
+    drawDebug(gl, shaderPrograms.debug, projectionMatrix, skyViewMatrix, selectedStarCoords)
+  }
+}
+
+export const selectSceneObject = ({ gl, shaderPrograms, point, viewport, fov, location, panning, date }: {
+  gl: WebGL2RenderingContext,
+  shaderPrograms: ShaderProgramsMap,
+  point: { x: number, y: number },
+  viewport: Viewport;
+  fov: number
+  location: Location
+  date: Date
+  panning: Panning }
+): number => {
+  const { program, buffers, verticesCount } = shaderPrograms.starsForPicking
+
+  gl.useProgram(program)
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
+  const positionLocation = gl.getAttribLocation(program, 'a_raDec')
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(positionLocation)
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.sizes)
+  const sizeLocation = gl.getAttribLocation(program, 'a_size')
+  gl.vertexAttribPointer(sizeLocation, 1, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(sizeLocation)
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.colors)
+  const colorLocation = gl.getAttribLocation(program, 'a_color')
+  gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(colorLocation)
+
+  const { projectionMatrix, skyViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
+
+  const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
+  gl.uniformMatrix4fv(
+    projectionLocation,
+    false,
+    projectionMatrix)
+
+  const modelViewLocation = gl.getUniformLocation(program, 'u_modelViewMatrix')
+  gl.uniformMatrix4fv(
+    modelViewLocation,
+    false,
+    skyViewMatrix)
+  const timeLocation = gl.getUniformLocation(program, 'u_timeYears')
+  gl.uniform1f(
+    timeLocation,
+    decimalYear(date)
+  )
+
+  // Create a texture to render to
+  const targetTexture = gl.createTexture()
+  gl.bindTexture(gl.TEXTURE_2D, targetTexture)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    viewport.x, viewport.y,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    null
+  )
+
+  // create a depth renderbuffer
+  const depthBuffer = gl.createRenderbuffer()
+  gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer)
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, viewport.x, viewport.y)
+
+  // Create and bind the framebuffer
+  const fb = gl.createFramebuffer()
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb)
+
+  // attach the texture as the first color attachment
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, targetTexture, 0)
+
+  // make a depth buffer and the same size as the targetTexture
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer)
+  gl.clearColor(0, 0, 0, 0)
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+  gl.drawArrays(gl.POINTS, 0, verticesCount)
+
+  const pixelX = point.x * gl.canvas.width / (gl.canvas as HTMLCanvasElement).clientWidth
+  const pixelY = gl.canvas.height - point.y * gl.canvas.height / (gl.canvas as HTMLCanvasElement).clientHeight - 1
+  const data = new Uint8Array(4)
+  gl.readPixels(
+    pixelX, // x
+    pixelY, // y
+    1, // width
+    1, // height
+    gl.RGBA, // format
+    gl.UNSIGNED_BYTE, // type
+    data // typed array to hold result
+  )
+  gl.bindTexture(gl.TEXTURE_2D, null)
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null)
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.clearColor(0, 0, 0, 1)
+
+  return data[0]! + (data[1]! << 8) + (data[2]! << 16) + (data[3]! << 24)
 }

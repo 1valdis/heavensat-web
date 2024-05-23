@@ -13,9 +13,10 @@ export interface MenuProps {
   isRealtime: boolean
   switchSatelliteNamesVisibility: () => void
   satelliteNamesVisible: boolean
+  selectedStarId: number | null
 }
 
-export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime, stopRealtime, isRealtime, switchSatelliteNamesVisibility, satelliteNamesVisible }) => {
+export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime, stopRealtime, isRealtime, switchSatelliteNamesVisibility, satelliteNamesVisible, selectedStarId }) => {
   const incrementDate = useCallback(() => {
     const newDate = new Date(date)
     newDate.setTime(newDate.getTime() + 1000)
@@ -41,6 +42,7 @@ export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime,
     <button onClick={decrementDate}>-1s</button>
     <button onClick={updateLocation}>Locate</button>
     <button onClick={() => isRealtime ? stopRealtime() : startRealtime()}>{isRealtime ? 'Stop' : 'Start'}</button>
-    <label><input type='checkbox' onClick={switchSatelliteNamesVisibility} checked={satelliteNamesVisible}></input>Satellite names</label>
+    <label><input type='checkbox' onChange={switchSatelliteNamesVisibility} checked={satelliteNamesVisible}></input>Satellite names</label>
+    <p>Selected star: {selectedStarId ?? 'Not selected' }</p>
   </nav>
 }

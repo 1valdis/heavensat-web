@@ -6,10 +6,10 @@ import { useLatest } from './use-latest'
 import { useCameraControls } from './use-camera-controls'
 import { drawScene, selectSceneObject, setupShaderPrograms, ShaderProgramsMap } from './scene'
 import { Menu } from '../Ui/Menu'
-import { useAnimationFrameLoop } from './use-animation-frame'
 import { Viewport, Location, Panning, Satellite } from './common-types'
 import { ConcurrentPropagator } from './propagator'
 import { getAssets } from './assets-loader'
+import { useTimeControls } from './use-time-controls'
 
 const maxFov = 120
 const minFov = 0.5
@@ -24,7 +24,7 @@ function App () {
   const [fov, setFov] = useState(90)
 
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0 })
-  const [date, setDate] = useState(new Date())
+  const { start, stop, isPlaying, date, setDate } = useTimeControls()
   const [satelliteNamesVisible, setSatelliteNamesVisible] = useState(true)
 
   const assets = getAssets()
@@ -41,6 +41,9 @@ function App () {
     }
     return satellites
   })
+
+  const [selectedStarId, setSelectedStarId] = useState<number | null>(null)
+  const [selectedSatelliteNorad, setSelectedSatelliteNorad] = useState<number | null>(null)
 
   useEffect(() => {
     propagator.init(satellites, assets.msdfDefinition)
@@ -60,8 +63,6 @@ function App () {
   const glRef = useRef<WebGL2RenderingContext>()
 
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
-
-  const { start, stop, isStopped } = useAnimationFrameLoop(() => setDate(new Date()), { startOnMount: true })
 
   useEffect(() => {
     const gl = ref.current!.getContext('webgl2')!
@@ -134,6 +135,7 @@ function App () {
   useEffect(() => {
     const gl = glRef.current
     if (!gl || !shaderPrograms) return
+    const star = selectedStarId ? assets.catalogs.stars.find(star => star[0] === selectedStarId) : null
     drawScene({
       gl,
       shaderPrograms,
@@ -143,18 +145,20 @@ function App () {
       date,
       panning,
       propagatedSatellites,
-      satelliteNamesVisible
+      satelliteNamesVisible,
+      selectedStarCoords: star ? [star[2], star[3]] : null
     })
-  }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date, propagatedSatellites, satelliteNamesVisible])
+  }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date, propagatedSatellites, satelliteNamesVisible, selectedStarId, assets])
 
   const selectObject = useCallback((event: ReactMouseEvent<HTMLCanvasElement, MouseEvent>) => {
     const gl = glRef.current
-    if (!gl) return
+    if (!gl || !shaderPrograms) return
     const { top, left } = event.currentTarget.getBoundingClientRect()
     const [mouseX, mouseY] = [event.clientX, event.clientY]
     const [x, y] = [Math.floor(mouseX - left), Math.floor(mouseY - top)]
-    selectSceneObject({
+    const object = selectSceneObject({
       gl,
+      shaderPrograms,
       point: { x, y },
       viewport,
       fov,
@@ -162,7 +166,12 @@ function App () {
       date,
       panning
     })
-  }, [])
+    if (object) {
+      setSelectedStarId(object)
+    } else {
+      setSelectedStarId(null)
+    }
+  }, [date, fov, location, panning, shaderPrograms, viewport])
 
   return (
     <div className="App">
@@ -174,9 +183,11 @@ function App () {
         setLocation={setLocation}
         startRealtime={start}
         stopRealtime={stop}
-        isRealtime={!isStopped}
+        isRealtime={isPlaying}
         switchSatelliteNamesVisibility={() => setSatelliteNamesVisible(current => !current)}
         satelliteNamesVisible={satelliteNamesVisible}
+        selectedStarId={selectedStarId}
+        // selectedSatelliteNorad={selectedSatelliteNorad}
         />
     </div>
   )

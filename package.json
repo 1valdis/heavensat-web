@@ -7,6 +7,8 @@
     "@types/node": "^18.14.0",
     "@types/react": "^18.0.28",
     "@types/react-dom": "^18.0.11",
+    "satellitejs-wasm": "file:..\\assemblyscript-satellitejs",
+    "astronomia": "^4.1.1",
     "gh-pages": "^4.0.0",
     "gl-matrix": "^3.4.3",
     "react": "^18.2.0",
@@ -15,7 +17,9 @@
     "satellite.js": "^5.0.0",
     "typescript": "^4.9.5"
   },
+  "type": "module",
   "devDependencies": {
+    "@craco/craco": "^7.1.0",
     "@types/gl-matrix": "^3.2.0",
     "@typescript-eslint/eslint-plugin": "^5.57.1",
     "@typescript-eslint/parser": "^5.57.1",
@@ -34,9 +38,9 @@
     "eslint-plugin-sonarjs": "^0.19.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test",
     "eject": "react-scripts eject",
     "deploy": "gh-pages -d build"
   },
@@ -48,9 +52,9 @@
   },
   "browserslist": {
     "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
     ],
     "development": [
       "last 1 chrome version",
