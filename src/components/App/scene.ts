@@ -133,7 +133,7 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
   ]), gl.STATIC_DRAW)
 
   // eslint-disable-next-line no-debugger
-  debugger
+  // debugger
 
   return {
     stars: {

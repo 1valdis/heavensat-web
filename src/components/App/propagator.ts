@@ -24,7 +24,10 @@ interface StateEventTarget extends EventTarget {
 const typedEventTarget = EventTarget as {new(): StateEventTarget; prototype: StateEventTarget}
 
 class Propagator extends typedEventTarget {
-  private readonly worker = new Worker(new URL('./propagator-worker.ts', import.meta.url))
+  private readonly worker = new Worker(
+    new URL('./propagator-worker.ts', import.meta.url), { type: 'module' }
+  )
+
   private latestPropagateQuery: PropagateQuery | null = null
   private latestInitializeQuery: InitQuery | null = null
   private busy = false
