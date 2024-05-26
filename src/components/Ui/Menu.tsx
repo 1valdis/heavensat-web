@@ -1,7 +1,8 @@
-import { FC, useCallback } from 'react'
+import { FC, useCallback, useRef } from 'react'
 import { Location } from '../App/common-types'
 
 import './Menu.css'
+import { DateTime } from 'luxon'
 
 export interface MenuProps {
   date: Date
@@ -17,16 +18,6 @@ export interface MenuProps {
 }
 
 export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime, stopRealtime, isRealtime, switchSatelliteNamesVisibility, satelliteNamesVisible, selectedStarId }) => {
-  const incrementDate = useCallback(() => {
-    const newDate = new Date(date)
-    newDate.setTime(newDate.getTime() + 1000)
-    setDate(newDate)
-  }, [date, setDate])
-  const decrementDate = useCallback(() => {
-    const newDate = new Date(date)
-    newDate.setTime(newDate.getTime() - 1000)
-    setDate(newDate)
-  }, [date, setDate])
   const updateLocation = useCallback(() => {
     navigator.geolocation.getCurrentPosition(
       (position) => setLocation({
@@ -36,12 +27,44 @@ export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime,
       })
     )
   }, [setLocation])
+
+  const yearInputRef = useRef<HTMLInputElement>(null)
+  const monthInputRef = useRef<HTMLInputElement>(null)
+  const dayInputRef = useRef<HTMLInputElement>(null)
+  const hourInputRef = useRef<HTMLInputElement>(null)
+  const minuteInputRef = useRef<HTMLInputElement>(null)
+  const secondInputRef = useRef<HTMLInputElement>(null)
+  const millisecondInputRef = useRef<HTMLInputElement>(null)
+
+  const dateTime = DateTime.fromJSDate(date).setZone('system')
+
+  const changeDate = useCallback(() => {
+    const newDateTime = DateTime.fromObject({
+      year: +yearInputRef.current!.value,
+      month: +monthInputRef.current!.value,
+      day: +dayInputRef.current!.value,
+      hour: +hourInputRef.current!.value,
+      minute: +minuteInputRef.current!.value,
+      second: +secondInputRef.current!.value,
+      millisecond: +millisecondInputRef.current!.value
+    }, { zone: 'system' })
+    if (!newDateTime.isValid) return
+    setDate(newDateTime.toJSDate())
+  }, [setDate])
+
   return <nav>
     <label>{date.toISOString()}</label>
-    <button onClick={incrementDate}>+1s</button>
-    <button onClick={decrementDate}>-1s</button>
     <button onClick={updateLocation}>Locate</button>
     <button onClick={() => isRealtime ? stopRealtime() : startRealtime()}>{isRealtime ? 'Stop' : 'Start'}</button>
+    <form onChange={() => changeDate()}>
+      <input ref={yearInputRef} type='number' min={2000} max={2100} value={dateTime.year}></input>
+      <input ref={monthInputRef} type='number' min={1} max={12} value={`${dateTime.month}`.padStart(2, '0')}></input>
+      <input ref={dayInputRef} type='number' min={1} max={dateTime.endOf('month').day} value={dateTime.day}></input>
+      <input ref={hourInputRef} type='number' min={0} max={23} value={`${dateTime.hour}`.padStart(2, '0')}></input>
+      <input ref={minuteInputRef} type='number' min={0} max={59} value={`${dateTime.minute}`.padStart(2, '0')}></input>
+      <input ref={secondInputRef} type='number' min={0} max={59} value={`${dateTime.second}`.padStart(2, '0')}></input>
+      <input ref={millisecondInputRef} type='number' min={0} max={999} value={`${dateTime.millisecond}`.padStart(3, '0')}></input>
+    </form>
     <label><input type='checkbox' onChange={switchSatelliteNamesVisibility} checked={satelliteNamesVisible}></input>Satellite names</label>
     <p>Selected star: {selectedStarId ?? 'Not selected' }</p>
   </nav>

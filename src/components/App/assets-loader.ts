@@ -48,7 +48,7 @@ export function fetchAssets () {
       catalogs: {
         stars: starCatalog.default as HIPStarOriginal[],
         constellations: constellationLineship.default,
-        satellites: satelliteCatalogLoaded.split('\n').slice(0, -1),
+        satellites: satelliteCatalogLoaded.split('\r\n').slice(0, -1)
       },
       msdfDefinition: msdfDefinition.default
     }
