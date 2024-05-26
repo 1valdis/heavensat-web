@@ -1,7 +1,7 @@
 import { mat4 } from 'gl-matrix'
 import { bvToRgb, decimalYear, degreesToRad, raDecToCartesian } from './celestial'
 import { initShaderProgram } from './webgl'
-import { groundFragmentSource, groundVertexSource, constellationFragmentSource, constellationVertexSource, satelliteFragmentSource, satelliteVertexSource, starFragmentSource, starVertexSource, gridLineVertexSource, gridLineFragmentSource, textFragmentShader, textVertexShader, starForPickingVertexSource, starForPickingFragmentSource, debugVertexSource, debugFragmentSource } from './shaders'
+import * as shaders from './shaders/index'
 import * as satellite from 'satellite.js'
 import { Viewport, Panning, Location, HIPStar } from './common-types'
 import { Assets } from './assets-loader'
@@ -137,7 +137,7 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
 
   return {
     stars: {
-      program: initShaderProgram(gl, starVertexSource, starFragmentSource),
+      program: initShaderProgram(gl, shaders.starVertex, shaders.starFragment),
       buffers: {
         positions: starsPositionBuffer,
         sizes: sizeBuffer,
@@ -146,7 +146,7 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
       verticesCount: starPositions.length / 2
     },
     starsForPicking: {
-      program: initShaderProgram(gl, starForPickingVertexSource, starForPickingFragmentSource),
+      program: initShaderProgram(gl, shaders.starPickingVertex, shaders.starPickingFragment),
       buffers: {
         positions: starsPositionBuffer,
         sizes: sizeBuffer,
@@ -155,31 +155,31 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
       verticesCount: starPositions.length / 2
     },
     satellitesForPicking: {
-      program: initShaderProgram(gl, satelliteVertexSource, satelliteFragmentSource)
+      program: initShaderProgram(gl, shaders.satellitePickingVertex, shaders.satellitePickingFragment)
     },
     constellations: {
-      program: initShaderProgram(gl, constellationVertexSource, constellationFragmentSource),
+      program: initShaderProgram(gl, shaders.constellationVertex, shaders.constellationFragment),
       buffers: {
         positions: constellationPositionsBuffer
       },
       verticesCount: constellationLines.length / 2
     },
     ground: {
-      program: initShaderProgram(gl, groundVertexSource, groundFragmentSource),
+      program: initShaderProgram(gl, shaders.groundVertex, shaders.groundFragment),
       buffers: {
         positions: groundPositionBuffer
       }
     },
     satellites: {
-      program: initShaderProgram(gl, satelliteVertexSource, satelliteFragmentSource),
+      program: initShaderProgram(gl, shaders.satelliteVertex, shaders.satelliteFragment),
       texture: satelliteTexture
     },
     satelliteNames: {
-      program: initShaderProgram(gl, textVertexShader, textFragmentShader),
+      program: initShaderProgram(gl, shaders.textVertex, shaders.textFragment),
       texture: textTexture
     },
-    grid: initShaderProgram(gl, gridLineVertexSource, gridLineFragmentSource),
-    debug: initShaderProgram(gl, debugVertexSource, debugFragmentSource)
+    grid: initShaderProgram(gl, shaders.gridVertex, shaders.gridFragment),
+    debug: initShaderProgram(gl, shaders.debugVertex, shaders.debugFragment)
   }
 }
 
