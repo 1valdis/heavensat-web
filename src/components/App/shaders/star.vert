@@ -4,9 +4,11 @@ precision highp float;
 in vec2 a_raDec;
 in float a_size;
 in vec4 a_color;
+in highp int a_instanceId;
 
 out vec4 v_color;
 out float v_size;
+flat out highp int vInstanceId;
 
 uniform mat4 u_projectionMatrix;
 uniform mat4 u_modelViewMatrix;
@@ -38,4 +40,5 @@ void main() {
   gl_PointSize = a_size;
   v_color = a_color;
   v_size = a_size;
+  vInstanceId = a_instanceId;
 }

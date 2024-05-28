@@ -34,6 +34,7 @@ class Propagator extends typedEventTarget {
 
   #propagated: PropagationResults = {
     propagatedPositions: new Float32Array(0),
+    propagatedIds: new Int32Array(0),
     textsOrigins: new Float32Array(0),
     textsPositions: new Float32Array(0),
     textsUVCoords: new Float32Array(0)
@@ -71,11 +72,12 @@ class Propagator extends typedEventTarget {
     this.worker.onerror = console.log
   }
 
-  init (satellites: Satellite[], msdfDefinition: MsdfDefinition) {
+  init (offset: number, satellites: Satellite[], msdfDefinition: MsdfDefinition) {
     this.latestInitializeQuery = {
       type: 'init',
       queryId: crypto.randomUUID(),
       '3LEs': satellites.map(sat => sat['3leLines']),
+      ids: satellites.map((sat, index) => index + offset),
       msdfDefinition
     }
     this.worker.postMessage(this.latestInitializeQuery)
@@ -97,6 +99,7 @@ class Propagator extends typedEventTarget {
 
 export type PropagationResults = {
   propagatedPositions: Float32Array,
+  propagatedIds: Int32Array,
   textsOrigins: Float32Array,
   textsPositions: Float32Array,
   textsUVCoords: Float32Array
@@ -110,9 +113,9 @@ export class ConcurrentPropagator extends typedEventTarget {
       const propagator = new Propagator()
       propagator.addEventListener('propagate-result', () => {
         this.dispatchEvent(new CustomEvent('propagate-result'))
-        const keysToConcatenate = ['propagatedPositions', 'textsOrigins', 'textsPositions', 'textsUVCoords'] as const
+        const keysToConcatenate: (keyof PropagationResults)[] = ['propagatedPositions', 'propagatedIds', 'textsOrigins', 'textsPositions', 'textsUVCoords']
         const resultArrays = keysToConcatenate.map(key => {
-          const resultArray = new Float32Array(this.workers.reduce((acc, current) => acc + current.propagator.propagated[key].length, 0))
+          const resultArray = new (key === 'propagatedIds' ? Int32Array : Float32Array)(this.workers.reduce((acc, current) => acc + current.propagator.propagated[key].length, 0))
           let currentOffset = 0
           this.workers.forEach(worker => {
             resultArray.set(worker.propagator.propagated[key], currentOffset)
@@ -121,10 +124,11 @@ export class ConcurrentPropagator extends typedEventTarget {
           return resultArray
         })
         this.#propagated = {
-          propagatedPositions: resultArrays[0]!,
-          textsOrigins: resultArrays[1]!,
-          textsPositions: resultArrays[2]!,
-          textsUVCoords: resultArrays[3]!
+          propagatedPositions: resultArrays[0]! as Float32Array,
+          propagatedIds: resultArrays[1]! as Int32Array,
+          textsOrigins: resultArrays[2]! as Float32Array,
+          textsPositions: resultArrays[3]! as Float32Array,
+          textsUVCoords: resultArrays[4]! as Float32Array
         }
       })
       return {
@@ -135,6 +139,7 @@ export class ConcurrentPropagator extends typedEventTarget {
 
   #propagated: PropagationResults = {
     propagatedPositions: new Float32Array(0),
+    propagatedIds: new Int32Array(0),
     textsOrigins: new Float32Array(0),
     textsPositions: new Float32Array(0),
     textsUVCoords: new Float32Array(0)
@@ -152,7 +157,13 @@ export class ConcurrentPropagator extends typedEventTarget {
     const chunks = chunkify(satellites, this.workers.length)
 
     this.workers.forEach((worker, index) => {
-      worker.propagator.init(chunks[index]!, msdfDefinition)
+      const offset = chunks.reduce((acc, current, currentIndex) => {
+        if (currentIndex >= index) {
+          return acc
+        }
+        return acc + current.length
+      }, 0)
+      worker.propagator.init(offset, chunks[index]!, msdfDefinition)
       worker.assignedSatellites = chunks[index]!
     })
   }

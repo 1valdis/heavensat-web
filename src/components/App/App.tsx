@@ -6,10 +6,11 @@ import { useLatest } from './use-latest'
 import { useCameraControls } from './use-camera-controls'
 import { drawScene, selectSceneObject, setupShaderPrograms, ShaderProgramsMap } from './scene'
 import { Menu } from '../Ui/Menu'
-import { Viewport, Location, Panning, Satellite } from './common-types'
+import { Viewport, Location, Panning } from './common-types'
 import { ConcurrentPropagator } from './propagator'
 import { getAssets } from './assets-loader'
 import { useTimeControls } from './use-time-controls'
+import { useSatellites } from './use-satellites.js'
 
 const maxFov = 120
 const minFov = 0.5
@@ -26,24 +27,14 @@ function App () {
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0 })
   const { start, stop, isPlaying, date, setDate } = useTimeControls()
   const [satelliteNamesVisible, setSatelliteNamesVisible] = useState(true)
+  const switchSatelliteNamesVisibility = useCallback(() => setSatelliteNamesVisible(current => !current), [setSatelliteNamesVisible])
 
   const assets = getAssets()
 
-  const [satellites, setSatellites] = useState<Satellite[]>((): Satellite[] => {
-    const satellites: Satellite[] = []
-    const catalogLines = assets.catalogs.satellites
-    for (let i = 0; i < catalogLines.length; i += 3) {
-      satellites.push({
-        name: catalogLines[i]!.slice(2),
-        norad: catalogLines[i + 1]!.slice(2, 7),
-        '3leLines': [catalogLines[i]!, catalogLines[i + 1]!, catalogLines[i + 2]!]
-      })
-    }
-    return satellites
-  })
+  const { satellitesMap, satellites } = useSatellites(assets)
 
   const [selectedStarId, setSelectedStarId] = useState<number | null>(null)
-  const [selectedSatelliteNorad, setSelectedSatelliteNorad] = useState<number | null>(null)
+  const [selectedSatelliteId, setSelectedSatelliteId] = useState<number | null>(null)
 
   useEffect(() => {
     propagator.init(satellites, assets.msdfDefinition)
@@ -65,7 +56,7 @@ function App () {
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
 
   useEffect(() => {
-    const gl = ref.current!.getContext('webgl2')!
+    const gl = ref.current!.getContext('webgl2', { antialias: false })!
     glRef.current = gl
     if (!shaderPrograms) {
       setShaderPrograms(setupShaderPrograms(glRef.current, assets))
@@ -150,7 +141,12 @@ function App () {
     })
   }, [shaderPrograms, panning, fov, viewport, latestViewport, location, date, propagatedSatellites, satelliteNamesVisible, selectedStarId, assets])
 
+  const [mouseDownCoords, setMouseDownCoords] = useState<{ x: number, y: number } | null>(null)
+  const updateMouseDownPosition = useCallback((event: ReactMouseEvent<HTMLCanvasElement, MouseEvent>) => setMouseDownCoords({ x: event.clientX, y: event.clientY }), [setMouseDownCoords])
   const selectObject = useCallback((event: ReactMouseEvent<HTMLCanvasElement, MouseEvent>) => {
+    if (mouseDownCoords?.x !== event.clientX || mouseDownCoords?.y !== event.clientY) {
+      return
+    }
     const gl = glRef.current
     if (!gl || !shaderPrograms) return
     const { top, left } = event.currentTarget.getBoundingClientRect()
@@ -164,18 +160,23 @@ function App () {
       fov,
       location,
       date,
-      panning
+      panning,
+      propagatedSatellites: propagatedSatellites.propagatedPositions,
+      propagatedIds: propagatedSatellites.propagatedIds
     })
     if (object) {
-      setSelectedStarId(object)
-    } else {
-      setSelectedStarId(null)
+      if (object.type === 'satellite') {
+        setSelectedSatelliteId(object.satelliteId)
+      }
+      if (object.type === 'star') {
+        setSelectedStarId(object.starId)
+      }
     }
-  }, [date, fov, location, panning, shaderPrograms, viewport])
+  }, [date, fov, location, mouseDownCoords, panning, propagatedSatellites, shaderPrograms, viewport])
 
   return (
     <div className="App">
-      <canvas id="sky" ref={ref} width={viewport.x} height={viewport.y} onClick={selectObject}></canvas>
+      <canvas id="sky" ref={ref} width={viewport.x} height={viewport.y} onClick={selectObject} onMouseDown={updateMouseDownPosition}></canvas>
       <Menu
         date={date}
         setDate={setDate}
@@ -184,10 +185,10 @@ function App () {
         startRealtime={start}
         stopRealtime={stop}
         isRealtime={isPlaying}
-        switchSatelliteNamesVisibility={() => setSatelliteNamesVisible(current => !current)}
+        switchSatelliteNamesVisibility={switchSatelliteNamesVisibility}
         satelliteNamesVisible={satelliteNamesVisible}
         selectedStarId={selectedStarId}
-        // selectedSatelliteNorad={selectedSatelliteNorad}
+        selectedSatellite={selectedSatelliteId ? satellitesMap.get(selectedSatelliteId)! : null}
         />
     </div>
   )

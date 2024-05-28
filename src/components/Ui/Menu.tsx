@@ -1,5 +1,5 @@
 import { FC, useCallback, useRef } from 'react'
-import { Location } from '../App/common-types'
+import { Location, Satellite } from '../App/common-types'
 
 import './Menu.css'
 import { DateTime } from 'luxon'
@@ -15,9 +15,10 @@ export interface MenuProps {
   switchSatelliteNamesVisibility: () => void
   satelliteNamesVisible: boolean
   selectedStarId: number | null
+  selectedSatellite: Satellite | null
 }
 
-export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime, stopRealtime, isRealtime, switchSatelliteNamesVisibility, satelliteNamesVisible, selectedStarId }) => {
+export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime, stopRealtime, isRealtime, switchSatelliteNamesVisibility, satelliteNamesVisible, selectedStarId, selectedSatellite }) => {
   const updateLocation = useCallback(() => {
     navigator.geolocation.getCurrentPosition(
       (position) => setLocation({
@@ -67,5 +68,6 @@ export const Menu: FC<MenuProps> = ({ date, setDate, setLocation, startRealtime,
     </form>
     <label><input type='checkbox' onChange={switchSatelliteNamesVisibility} checked={satelliteNamesVisible}></input>Satellite names</label>
     <p>Selected star: {selectedStarId ?? 'Not selected' }</p>
+    <p>Selected satellite: {selectedSatellite?.name ?? 'None'}</p>
   </nav>
 }

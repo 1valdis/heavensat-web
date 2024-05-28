@@ -6,7 +6,7 @@ An app to see satellites and their trajectories in the sky, and maybe also calcu
 - [x] Geographically and time wise correct sky
 - [x] Account for Earth precession
 - [x] Satellites with names
-- [ ] Clickability
+- [x] Clickability
 - [ ] Sun, moon
 - [ ] Planets
 - [ ] Not simply dark but correctly colored sky gradient

@@ -1,3 +1,4 @@
+/* eslint-disable no-redeclare */
 import * as satellite from 'satellite.js'
 import { WorkerAnswer, WorkerQuery } from './message-types'
 import { MsdfGeometry, MsdfGeometryBuilder } from './msdf'
@@ -10,11 +11,12 @@ function lookAnglesToCartesian (elevation: number, azimuth: number): [number, nu
   return [y, z, x]
 }
 
-// faster concat of FLoat32Arrays, instead of spread syntax
-function concat (arrays: Float32Array[]) {
+function concat (arrays: Float32Array[]): Float32Array;
+function concat (arrays: Int32Array[]): Int32Array;
+function concat (arrays: Float32Array[] | Int32Array[]): Float32Array | Int32Array {
   const totalLength = arrays.reduce((acc, value) => acc + value.length, 0)
 
-  const result = new Float32Array(totalLength)
+  const result = arrays[0]! instanceof Float32Array ? new Float32Array(totalLength) : new Int32Array(totalLength)
 
   let length = 0
   for (const array of arrays) {
@@ -47,18 +49,25 @@ function typedPostMessage (message: WorkerAnswer, ...rest: ParametersExceptFirst
 
 let satRecs: satellite.SatRec[] = []
 
+const noradToIdMap = new Map<string, number>()
+
 const geometriesMap = new Map<string, MsdfGeometry>()
 const geometriesPositionsMap = new Map<string, Float32Array>()
 const geometriesUVCoordsMap = new Map<string, Float32Array>()
 
 self.onmessage = (e: MessageEvent<WorkerQuery>) => {
   if (e.data.type === 'init') {
+    const ids = e.data.ids
+    if (ids.length !== e.data['3LEs'].length) {
+      throw new Error('Ids must match 3LEs in length')
+    }
     geometriesMap.clear()
     geometriesPositionsMap.clear()
     geometriesUVCoordsMap.clear()
+    noradToIdMap.clear()
     const geometryBuilder = new MsdfGeometryBuilder(e.data.msdfDefinition)
     satRecs = e.data['3LEs']
-      .map(tle => {
+      .map((tle, index) => {
         const satRec = satellite.twoline2satrec(tle[1], tle[2])
         const geometry = geometryBuilder.textToGeometry(tle[0].slice(2))
         geometriesMap.set(satRec.satnum, geometry)
@@ -78,6 +87,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
           char.iUV[0], char.iUV[1] + char.iSize[1],
           char.iUV[0] + char.iSize[0], char.iUV[1] + char.iSize[1]
         ])))
+        noradToIdMap.set(satRec.satnum, ids[index]!)
         return satRec
       })
       .filter(satRec => satRec.error === 0)
@@ -111,8 +121,10 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       }
     })
 
-    const successful = (positions.filter((position) => position.cartesian) as {norad: string, cartesian: [number, number, number]}[]).filter(position => position.cartesian[1] > 0)
+    const successful = (positions.filter((position) => position.cartesian) as {norad: string, cartesian: [number, number, number]}[])
+      .filter(position => position.cartesian[1] > 0)
     const positionsArray = concat(successful.map(position => new Float32Array(position.cartesian!)))
+    const idsArray = concat(successful.map(position => new Int32Array([noradToIdMap.get(position.norad)!])))
 
     const textsOrigins = concat(
       successful.map(
@@ -128,6 +140,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       result: {
         failedNorads: positions.filter((position) => !position.cartesian).map(position => position.norad),
         propagatedPositions: positionsArray,
+        propagatedIds: idsArray,
         textsOrigins,
         textsPositions,
         textsUVCoords

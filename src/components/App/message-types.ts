@@ -8,6 +8,7 @@ export type BasicEvent = {
 export type InitQuery = BasicEvent & {
   type: 'init',
   '3LEs': Array<[string, string, string]>,
+  ids: Array<number>,
   msdfDefinition: MsdfDefinition
 }
 
@@ -29,8 +30,9 @@ export type PropagateAnswer = BasicEvent & {
   result: {
     failedNorads: string[],
     propagatedPositions: Float32Array
+    propagatedIds: Int32Array
     textsOrigins: Float32Array
-    textsPositions: Float32Array,
+    textsPositions: Float32Array
     textsUVCoords: Float32Array
   }
 }
