@@ -1,5 +1,6 @@
 import { mat4 } from 'gl-matrix'
-import { bvToRgb, decimalYear, degreesToRad, raDecToCartesian } from './celestial'
+import { Body, Equator, Horizon, Observer } from 'astronomy-engine'
+import { bvToRgb, decimalYear, degreesToRad, lookAnglesToCartesian } from './celestial'
 import { initShaderProgram } from './webgl'
 import * as shaders from './shaders/index'
 import * as satellite from 'satellite.js'
@@ -8,6 +9,12 @@ import { Assets } from './assets-loader'
 import { PropagationResults } from './propagator'
 
 export type ShaderProgramsMap = {
+  sky: {
+    program: WebGLProgram,
+    buffers: {
+      positions: WebGLBuffer,
+    }
+  }
   stars: {
     program: WebGLProgram,
     buffers: {
@@ -109,13 +116,28 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
   const groundPositionBuffer = gl.createBuffer()!
   gl.bindBuffer(gl.ARRAY_BUFFER, groundPositionBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    -1, -0.0001, -1,
-    1, -0.0001, -1,
-    1, -0.0001, 1,
-    -1, -0.0001, 1
+    1, 1,
+    -1, 1,
+    -1, -1,
+    1, -1
+  ]), gl.STATIC_DRAW)
+
+  const skyPositionBuffer = gl.createBuffer()!
+  gl.bindBuffer(gl.ARRAY_BUFFER, skyPositionBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    1, 1,
+    -1, 1,
+    -1, -1,
+    1, -1
   ]), gl.STATIC_DRAW)
 
   return {
+    sky: {
+      program: initShaderProgram(gl, shaders.skyVertex, shaders.skyFragment),
+      buffers: {
+        positions: skyPositionBuffer
+      }
+    },
     stars: {
       program: initShaderProgram(gl, shaders.starVertex, shaders.starFragment),
       buffers: {
@@ -223,25 +245,35 @@ const drawConstellations = (gl: WebGL2RenderingContext, { program, buffers, vert
   gl.drawArrays(gl.LINES, 0, verticesCount)
 }
 
-const drawGround = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['ground'], projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawGround = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['ground'], projectionMatrix: mat4, modelViewMatrix: mat4, viewport: Viewport) => {
   gl.useProgram(program)
 
   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
   const positionLocation = gl.getAttribLocation(program, 'a_position')
-  gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
 
-  const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
+  const inverseProjectionMatrix = mat4.create()
+  mat4.invert(inverseProjectionMatrix, projectionMatrix)
+  const projectionLocation = gl.getUniformLocation(program, 'u_invProjectionMatrix')
   gl.uniformMatrix4fv(
     projectionLocation,
     false,
-    projectionMatrix)
+    inverseProjectionMatrix)
 
-  const modelViewLocation = gl.getUniformLocation(program, 'u_modelViewMatrix')
+  const inverseModelViewMatrix = mat4.create()
+  mat4.invert(inverseModelViewMatrix, modelViewMatrix)
+  const modelViewLocation = gl.getUniformLocation(program, 'u_invModelViewMatrix')
   gl.uniformMatrix4fv(
     modelViewLocation,
     false,
-    modelViewMatrix)
+    inverseModelViewMatrix)
+
+  const viewportLocation = gl.getUniformLocation(program, 'u_viewport')
+  gl.uniform2f(
+    viewportLocation,
+    viewport.x, viewport.y
+  )
 
   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
 }
@@ -323,7 +355,7 @@ export const drawGrid = (gl: WebGL2RenderingContext, program: WebGLProgram, proj
 // const raToRad = (hours: number, minutes: number, seconds: number) => (hours + minutes / 60 + seconds / 3600) * 15 * Math.PI / 180
 // const decToRad = (degrees: number, minutes: number, seconds: number) => (degrees + minutes / 60 + seconds / 3600) * Math.PI / 180
 
-export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4, point: [ra: number, dec: number]) => {
+export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4, point: {x: number, y: number, z: number}) => {
   gl.useProgram(program)
 
   const debugPointPositions = [
@@ -332,7 +364,8 @@ export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, pro
     //   [47.816, 1.282]
     // ] as const).flatMap((pair) => lookAnglesToCartesian(degreesToRad(pair[0]), degreesToRad(pair[1]))),
     // ...raDecToCartesian(raToRad(2, 31, 48.7), decToRad(89, 15, 51))
-    ...raDecToCartesian(degreesToRad(point[0]), degreesToRad(point[1]))
+    // ...raDecToCartesian(degreesToRad(point[0]), degreesToRad(point[1]))
+    point.x, point.y, point.z
   ]
 
   const positionBuffer = gl.createBuffer()
@@ -402,54 +435,48 @@ const drawNames = (gl: WebGL2RenderingContext, { program, texture }: ShaderProgr
   gl.drawArrays(gl.TRIANGLES, 0, propagationResults.textsPositions.length / 2)
 }
 
-// const drawSkyGradient = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['skyGradient'], projectionMatrix: mat4, modelViewMatrix: mat4) => {
-//   gl.useProgram(program)
+const drawSky = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['sky'], projectionMatrix: mat4, modelViewMatrix: mat4, viewport: Viewport, date: Date, location: Location) => {
+  gl.useProgram(program)
 
-//   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
-//   const positionLocation = gl.getAttribLocation(program, 'a_position')
-//   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
-//   gl.enableVertexAttribArray(positionLocation)
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
+  const positionLocation = gl.getAttribLocation(program, 'a_position')
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
+  gl.enableVertexAttribArray(positionLocation)
 
-//   const sunPositionLocation = gl.getUniformLocation(program, 'u_sunPosition')
-//   gl.uniform3fv(sunPositionLocation, raDecToCartesian(raToRad(2, 7, 19), decToRad(12, 52, 31)))
+  const observer = new Observer(location.latitude, location.longitude, location.altitude)
+  const sunPosition = Equator(Body.Sun, date, observer, true, false)
+  const hor = Horizon(date, observer, sunPosition.ra, sunPosition.dec)
+  const cartesian = lookAnglesToCartesian(degreesToRad(hor.altitude), degreesToRad(hor.azimuth))
 
-//   const inverseProjectionMatrix = mat4.create()
-//   mat4.invert(inverseProjectionMatrix, projectionMatrix)
-//   const projectionLocation = gl.getUniformLocation(program, 'u_invProjectionMatrix')
-//   gl.uniformMatrix4fv(
-//     projectionLocation,
-//     false,
-//     inverseProjectionMatrix)
+  const sunPositionLocation = gl.getUniformLocation(program, 'u_sunPosition')
+  gl.uniform3f(sunPositionLocation, cartesian[0], cartesian[1], cartesian[2])
 
-//   const inverseModelViewMatrix = mat4.create()
-//   mat4.invert(inverseModelViewMatrix, modelViewMatrix)
-//   const modelViewLocation = gl.getUniformLocation(program, 'u_invModelViewMatrix')
-//   gl.uniformMatrix4fv(
-//     modelViewLocation,
-//     false,
-//     inverseModelViewMatrix)
+  const inverseProjectionMatrix = mat4.create()
+  mat4.invert(inverseProjectionMatrix, projectionMatrix)
+  const projectionLocation = gl.getUniformLocation(program, 'u_invProjectionMatrix')
+  gl.uniformMatrix4fv(
+    projectionLocation,
+    false,
+    inverseProjectionMatrix)
 
-//   const invertedMatrix = mat4.clone(projectionMatrix)
-//   mat4.multiply(invertedMatrix, projectionMatrix, modelViewMatrix)
-//   mat4.invert(invertedMatrix, invertedMatrix)
-//   const invertedLocation = gl.getUniformLocation(program, 'u_inverted')
-//   gl.uniformMatrix4fv(
-//     invertedLocation,
-//     false,
-//     invertedMatrix)
+  const inverseModelViewMatrix = mat4.create()
+  mat4.invert(inverseModelViewMatrix, modelViewMatrix)
+  const modelViewLocation = gl.getUniformLocation(program, 'u_invModelViewMatrix')
+  gl.uniformMatrix4fv(
+    modelViewLocation,
+    false,
+    inverseModelViewMatrix)
 
-//   const [, , width, height] = gl.getParameter(gl.VIEWPORT)
+  const viewportLocation = gl.getUniformLocation(program, 'u_viewport')
+  gl.uniform2f(
+    viewportLocation,
+    viewport.x, viewport.y
+  )
 
-//   const viewportLocation = gl.getUniformLocation(program, 'u_viewport')
-//   gl.uniform2f(
-//     viewportLocation,
-//     width, height
-//   )
+  gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
+}
 
-//   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
-// }
-
-const createMatrices = ({ viewport, fov, location, panning, date }: {
+export const createMatrices = ({ viewport, fov, location, panning, date }: {
   viewport: Viewport;
   fov: number;
   location: Location;
@@ -461,8 +488,8 @@ const createMatrices = ({ viewport, fov, location, panning, date }: {
   mat4.perspective(projectionMatrix,
     degreesToRad(fov),
     viewport.x / viewport.y,
-    0,
-    100)
+    0.1,
+    2)
 
   const skyViewMatrix = mat4.create()
 
@@ -481,9 +508,11 @@ const createMatrices = ({ viewport, fov, location, panning, date }: {
 
   mat4.multiply(skyViewMatrix, tiltMatrix, skyViewMatrix)
   mat4.multiply(skyViewMatrix, panningMatrix, skyViewMatrix)
+  // mat4.translate(skyViewMatrix, skyViewMatrix, [0, 0, 2])
 
   const groundViewMatrix = mat4.create()
   mat4.multiply(groundViewMatrix, panningMatrix, groundViewMatrix)
+  // mat4.translate(groundViewMatrix, groundViewMatrix, [0, 0, 2])
 
   return {
     projectionMatrix,
@@ -508,17 +537,17 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
 
   const { projectionMatrix, skyViewMatrix, groundViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
 
-  // drawSkyGradient(gl, shaderPrograms.skyGradient, projectionMatrix, skyViewMatrix)
+  drawSky(gl, shaderPrograms.sky, projectionMatrix, groundViewMatrix, viewport, date, location)
   drawConstellations(gl, shaderPrograms.constellations, date, projectionMatrix, skyViewMatrix)
   // drawGrid(gl, shaderPrograms.grid, projectionMatrix, groundViewMatrix)
   drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
+  drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix, viewport)
   drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, propagatedSatellites.propagatedIds, projectionMatrix, groundViewMatrix)
-  drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix)
   if (satelliteNamesVisible) {
     drawNames(gl, shaderPrograms.satelliteNames, propagatedSatellites, projectionMatrix, groundViewMatrix, viewport)
   }
-  // if (selectedStarCoords) {
-  //   drawDebug(gl, shaderPrograms.debug, projectionMatrix, skyViewMatrix, selectedStarCoords)
+  // if (selectedPoint) {
+  //   drawDebug(gl, shaderPrograms.debug, projectionMatrix, groundViewMatrix, selectedPoint)
   // }
 }
 

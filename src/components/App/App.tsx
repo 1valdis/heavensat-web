@@ -56,7 +56,7 @@ function App () {
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
 
   useEffect(() => {
-    const gl = ref.current!.getContext('webgl2', { antialias: false })!
+    const gl = ref.current!.getContext('webgl2', { antialias: false, desynchronized: true })!
     glRef.current = gl
     if (!shaderPrograms) {
       setShaderPrograms(setupShaderPrograms(glRef.current, assets))

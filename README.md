@@ -9,7 +9,7 @@ An app to see satellites and their trajectories in the sky, and maybe also calcu
 - [x] Clickability
 - [ ] Sun, moon
 - [ ] Planets
-- [ ] Not simply dark but correctly colored sky gradient
+- [x] Not simply dark but correctly colored sky gradient
 - [ ] Local storage for satellite databases, and persistent settings
 
 ## Credits
