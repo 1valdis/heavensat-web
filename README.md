@@ -1,16 +1,11 @@
 ## What's this?
 
-An app to see satellites and their trajectories in the sky, and maybe also calculate things. Name taken from desktop app called Heavensat, since it's Windows only I want to make something similar and useful cross-platform.
+An app to answer the questions:
+1. **What satellite did I just see?**
+2. **How do I see that satellite again? How do I see it in similar conditions, so if it flared it would flare again?**
+3. **What interesting stuff is flying over me today?**
 
-- [x] Stars, constellations, basic controls
-- [x] Geographically and time wise correct sky
-- [x] Account for Earth precession
-- [x] Satellites with names
-- [x] Clickability
-- [ ] Sun, moon
-- [ ] Planets
-- [x] Not simply dark but correctly colored sky gradient
-- [ ] Local storage for satellite databases, and persistent settings
+For details on development, see Roadmap: https://github.com/1valdis/heavensat-web/issues/1
 
 ## Credits
 - Hipparcos catalog: [gmiller123456/hip2000](https://github.com/gmiller123456/hip2000) magnitude 8 file, with small corrections to be valid JSON
