@@ -1,30 +1,60 @@
-// TODO figure out this function to not return NaN
 export function bvToRgb (bv: number): [number, number, number] {
-  const temperature = 4600 * ((1 / ((0.92 * bv) + 1.7)) + (1 / ((0.92 * bv) + 0.62)))
-  let red, green, blue
+  // Clamp B–V index to the valid range
+  if (bv < -0.4) bv = -0.4;
+  if (bv > 2.0) bv = 2.0;
 
-  if (temperature <= 6600) {
-    red = 1
-    green = 0.390 * Math.log10(temperature) - 0.631
+  let r: number, g: number, b: number, t: number;
+
+  if (bv < 0.0) {
+    t = (bv + 0.4) / (0.0 + 0.4);
+    r = 0.61 + 0.11 * t + 0.1 * t * t;
+  } else if (bv < 0.4) {
+    t = (bv - 0.0) / (0.4 - 0.0);
+    r = 0.83 + 0.17 * t;
   } else {
-    red = 1.292 * Math.pow(temperature / 100 - 60, -0.133)
-    green = 1.129 * Math.pow(temperature / 100 - 60, -0.075)
+    r = 1.0;
   }
 
-  if (temperature <= 1900) {
-    blue = 0
-  } else if (temperature < 6600) {
-    blue = -0.018 * Math.log10(temperature) - 0.258
+  if (bv < -0.4) {
+    t = (bv + 0.4) / (0.0 + 0.4);
+    g = 0.70 + 0.07 * t + 0.1 * t * t;
+  } else if (bv < 0.4) {
+    t = (bv - 0.0) / (0.4 - 0.0);
+    g = 0.87 + 0.11 * t;
+  } else if (bv < 1.6) {
+    t = (bv - 0.4) / (1.6 - 0.4);
+    g = 0.98 - 0.16 * t;
+  } else if (bv < 2.0) {
+    t = (bv - 1.6) / (2.0 - 1.6);
+    g = 0.82 - 0.5 * t * t;
   } else {
-    blue = 0.8 * Math.pow(temperature / 100 - 60, 0.45)
+    g = 0.62;
   }
 
-  // Apply gamma correction with a gamma value of 2.2
-  red = Math.pow(red, 2.2)
-  green = Math.pow(green, 2.2)
-  blue = Math.pow(blue, 2.2)
+  if (bv < -0.4) {
+    b = 1.0;
+  } else if (bv < 0.4) {
+    b = 1.0;
+  } else if (bv < 1.5) {
+    t = (bv - 0.4) / (1.5 - 0.4);
+    b = 1.0 - 0.47 * t + 0.1 * t * t;
+  } else if (bv < 1.94) {
+    t = (bv - 1.5) / (1.94 - 1.5);
+    b = 0.63 - 0.6 * t * t;
+  } else {
+    b = 0.0;
+  }
 
-  return [red, green, blue]
+  const contrastFactor = 2
+  // Calculate luminance using standard coefficients
+  const L = 0.299 * r + 0.587 * g + 0.114 * b;
+
+  // Boost each channel's deviation from luminance
+  r = L + contrastFactor * (r - L);
+  g = L + contrastFactor * (g - L);
+  b = L + contrastFactor * (b - L);
+
+  return [Math.min(1, Math.max(0, r)), Math.min(1, Math.max(0, g)), Math.min(1, Math.max(0, b))]
 }
 
 export function degreesToRad (degrees: number): number {
