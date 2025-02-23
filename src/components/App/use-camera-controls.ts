@@ -13,6 +13,7 @@ export const useCameraControls = (elementRef: RefObject<HTMLCanvasElement>, opti
   const pointersDownRef = useRef(new Map<number, PointerEvent>())
 
   const handleScroll = useCallback((event: WheelEvent) => {
+    event.preventDefault()
     changeZoom(event.deltaY)
   }, [changeZoom])
 

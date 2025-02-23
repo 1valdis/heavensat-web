@@ -3,6 +3,7 @@ import * as satellite from 'satellite.js'
 import { WorkerAnswer, WorkerQuery } from './message-types'
 import { MsdfGeometry, MsdfGeometryBuilder } from './msdf'
 
+// todo do that in the shader
 function lookAnglesToCartesian (elevation: number, azimuth: number): [number, number, number] {
   const x = Math.cos(elevation) * Math.cos(azimuth)
   const y = -Math.cos(elevation) * Math.sin(azimuth)

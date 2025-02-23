@@ -4,17 +4,27 @@
   padding: 0
 }
 
-html, body {
+html, body, #root {
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  height: 100vh;
+  min-height: 100vh;
 }
 
 #sky {
-  max-height: 100%;
-  max-width: 100%;
-  width: 100vw;
-  height: 100vh;
   background: black;
   touch-action: none;
+  align-self: stretch;
+  justify-self: stretch;
+  max-width: 100%;
+  display: block;
+}
+
+.App {
+  display: grid;
+  grid-template-rows: min-content minmax(0, 1fr) min-content;
+  grid-template-columns: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
 }
