@@ -28,11 +28,9 @@ const zoomSensitivity = 0.0025
 const propagator = new ConcurrentPropagator()
 
 function App () {
-  // const kek = useRegisterSW({ onOfflineReady: () => alert('Ready to work offline'), onNeedRefresh: () => alert('Need refresh') })
   const [viewportX, setViewportX] = useState<number>(window.innerWidth * devicePixelRatio)
   const [viewportY, setViewportY] = useState<number>(window.innerHeight * devicePixelRatio)
-  // const [viewport, setViewport] = useState<Viewport>({ x: window.innerWidth, y: window.innerHeight })
-  // const latestViewport = useLatest(viewport).current
+
   const [panning, setPanning] = useState<Panning>({ x: 0, y: 0 })
   const [fov, setFov] = useState(90)
 
@@ -105,14 +103,12 @@ function App () {
     if (!glRef.current) return
     let width
     let height
-    let dpr = window.devicePixelRatio
     if (entry.devicePixelContentBoxSize) {
       // NOTE: Only this path gives the correct answer
       // The other paths are an imperfect fallback
       // for browsers that don't provide anyway to do this
       width = entry.devicePixelContentBoxSize[0]!.inlineSize
       height = entry.devicePixelContentBoxSize[0]!.blockSize
-      dpr = 1 // it's already in width and height
     } else if (entry.contentBoxSize) {
       width = entry.contentBoxSize[0]!.inlineSize
       height = entry.contentBoxSize[0]!.blockSize
@@ -133,7 +129,7 @@ function App () {
     gl.viewport(0, 0, viewportX, viewportY)
   }, [shaderPrograms, viewportX, viewportY])
 
-  const [currentlySelectedCoord, setCurrentlySelectedCoord] = useState<{x: number, y: number, z: number} | null>(null)
+  const [currentlySelectedCoord, setCurrentlySelectedCoord] = useState<{ x: number, y: number, z: number } | null>(null)
 
   const getClickCoord = useCallback((event: ReactMouseEvent<HTMLCanvasElement, MouseEvent>) => {
     const { top, left } = event.currentTarget.getBoundingClientRect()
@@ -226,10 +222,10 @@ function App () {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
-      <div className="App">
-        <TopMenu></TopMenu>
-        <canvas id="sky" ref={ref} onClick={selectObject} onMouseDown={updateMouseDownPosition}></canvas>
-        <BottomControls date={date} start={start} stop={stop} setDate={setDate} isPlaying={isPlaying} location={location} zone='Europe/Kiev'></BottomControls>
+      <div className='App'>
+        <TopMenu />
+        <canvas id='sky' ref={ref} onClick={selectObject} onMouseDown={updateMouseDownPosition} />
+        <BottomControls date={date} start={start} stop={stop} setDate={setDate} isPlaying={isPlaying} location={location} zone='Europe/Kiev' />
       </div>
     </ThemeProvider>
   )

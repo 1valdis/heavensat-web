@@ -4,7 +4,7 @@ const distance = (deltaX: number, deltaY: number) => {
   return Math.sqrt(deltaX ** 2 + deltaY ** 2)
 }
 
-export const useCameraControls = (elementRef: RefObject<HTMLCanvasElement>, options: {
+export const useCameraControls = (elementRef: RefObject<HTMLCanvasElement | null>, options: {
   setRotation: (deltaX: number, deltaY: number) => void,
   changeZoom: (delta: number) => void
   multiplyZoom: (ratio: number) => void

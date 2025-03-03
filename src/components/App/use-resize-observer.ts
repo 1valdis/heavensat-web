@@ -65,7 +65,7 @@ export type UseResizeObserverCallback = (
   observer: ResizeObserver
 ) => any
 
-function useResizeObserver<T extends HTMLElement> (
+function useResizeObserver<T extends HTMLElement | null> (
   target: RefObject<T> | T | null,
   callback: UseResizeObserverCallback
 ): ResizeObserver {
