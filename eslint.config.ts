@@ -7,6 +7,9 @@ import json from 'eslint-plugin-json'
 
 export default [
   {
+    ignores: ['node_modules/**']
+  },
+  {
     plugins: {
       react,
     },
@@ -28,11 +31,17 @@ export default [
       'react/prop-types': 0,
     }
   },
-  ...neostandard({ ts: true }),
+  ...neostandard({ ts: true, env: ['browser', 'es2025'] }),
   reactHooks.configs['recommended-latest'],
   sonarjs.configs.recommended,
   {
     files: ['**/*.json'],
     ...json.configs['recommended']
+  },
+  {
+    rules: {
+      'sonarjs/no-nested-assignment': 0,
+      'sonarjs/no-commented-code': 0
+    }
   }
 ] satisfies Linter.Config[]

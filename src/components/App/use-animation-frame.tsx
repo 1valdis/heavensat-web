@@ -65,7 +65,6 @@ export const useAnimationFrameLoop = <T extends (...args: never[]) => unknown>(
   const nextCallback = useCallback(() => {
     if (!isStopped) {
       rafCallback.current()
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       runInLoop()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

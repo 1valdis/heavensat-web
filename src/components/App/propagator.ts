@@ -1,4 +1,3 @@
-/* eslint-disable sonarjs/no-duplicate-string */
 import { InitQuery, PropagateQuery, WorkerAnswer } from './message-types'
 import { Location, Satellite } from './common-types'
 import { chunkify } from './chunkify'
@@ -21,7 +20,7 @@ interface StateEventTarget extends EventTarget {
   ): void;
 }
 
-const typedEventTarget = EventTarget as {new(): StateEventTarget; prototype: StateEventTarget}
+const typedEventTarget = EventTarget as { new(): StateEventTarget; prototype: StateEventTarget }
 
 class Propagator extends typedEventTarget {
   private readonly worker = new Worker(

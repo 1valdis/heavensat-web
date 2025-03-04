@@ -3,12 +3,12 @@ import { MsdfGeometry, MsdfGeometryBuilder, MsdfDefinition } from '../msdf.js'
 import { Location, Satellite } from '../common-types.js'
 import { chunkify } from '../chunkify.js'
 import { PropagateQuery, InitQuery, WorkerAnswer, Buffers } from './message-types-sab.js'
-import { BYTES_PER_FLOAT, getControlBytesSize, getHalfDoubleBufferBytesSize, getIdsBytesSize, getPositionsBytesSize, getTextsOriginsBytesSize, getTextsPositionsBytesSize, getTextsUVsBytesSize, getTotalBytesSize } from '../sab-offsets.js'
+import { BYTES_PER_FLOAT, getControlBytesSize, getHalfDoubleBufferBytesSize, getIdsBytesSize, getPositionsBytesSize, getTextsOriginsBytesSize, getTextsPositionsBytesSize, getTextsUVsBytesSize, getTotalBytesSize } from './sab-offsets.js'
 import { ShaderProgramsMap } from '../scene.js'
-import { lockSomeSide, unlock } from '../lock.js'
+import { lockSomeSide, unlock } from './lock.js'
 
-function concat (arrays: Float32Array[]): Float32Array;
-function concat (arrays: Int32Array[]): Int32Array;
+function concat (arrays: Float32Array[]): Float32Array
+function concat (arrays: Int32Array[]): Int32Array
 function concat (arrays: Float32Array[] | Int32Array[]): Float32Array | Int32Array {
   const totalLength = arrays.reduce((acc, value) => acc + value.length, 0)
 
@@ -40,7 +40,7 @@ interface StateEventTarget extends EventTarget {
   ): void;
 }
 
-const typedEventTarget = EventTarget as {new(): StateEventTarget; prototype: StateEventTarget}
+const typedEventTarget = EventTarget as { new(): StateEventTarget; prototype: StateEventTarget }
 
 const createBufferSet = (sab: SharedArrayBuffer, baseOffset: number, counts: {
   satellitesCount: number,
@@ -178,7 +178,7 @@ export class ConcurrentPropagatorSAB extends typedEventTarget {
     return this.#initialized
   }
 
-  private getInitData(partsCount: number, satellites: Satellite[]): { sab: SharedArrayBuffer, initData: { buffers: [Buffers, Buffers], satellitesOffset: number, satellites: Satellite[], charactersCount: number }[] } {
+  private getInitData (partsCount: number, satellites: Satellite[]): { sab: SharedArrayBuffer, initData: { buffers: [Buffers, Buffers], satellitesOffset: number, satellites: Satellite[], charactersCount: number }[] } {
     const chunks = chunkify(satellites, partsCount)
 
     const offsets = chunks.map(chunk => {
@@ -213,42 +213,8 @@ export class ConcurrentPropagatorSAB extends typedEventTarget {
     }
   }
 
-  updateWebGLBuffers(gl: WebGL2RenderingContext, shaderPrograms: ShaderProgramsMap) {
+  updateWebGLBuffers (gl: WebGL2RenderingContext, shaderPrograms: ShaderProgramsMap) {
     if (!this.#initialized || !this.#latestInitData) { return }
-
-    // const locks = this.#latestInitData.map((initData) => {
-    //   return lockSomeSide(initData.buffers[0].control, initData.buffers[1].control)
-    // })
-    // gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satellites.buffers.positions)
-    // gl.bufferData(gl.ARRAY_BUFFER, concat(this.#latestInitData!.map((initData, index) => initData.buffers[locks[index]!].positions)), gl.STREAM_DRAW)
-    // gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satellites.buffers.ids)
-    // gl.bufferData(gl.ARRAY_BUFFER, concat(this.#latestInitData!.map((initData, index) => initData.buffers[locks[index]!].ids)), gl.STREAM_DRAW)
-    // gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.positions)
-    // gl.bufferData(gl.ARRAY_BUFFER, concat(this.#latestInitData!.map((initData, index) => initData.buffers[locks[index]!].textsPositions)), gl.STREAM_DRAW)
-    // gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.origins)
-    // gl.bufferData(gl.ARRAY_BUFFER, concat(this.#latestInitData!.map((initData, index) => initData.buffers[locks[index]!].textsOrigins)), gl.STREAM_DRAW)
-    // gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.uvs)
-    // gl.bufferData(gl.ARRAY_BUFFER, concat(this.#latestInitData!.map((initData, index) => initData.buffers[locks[index]!].textsUVCoords)), gl.STREAM_DRAW)
-    // this.#latestInitData.forEach((initData, index) => unlock(initData.buffers[locks[index]!].control))
-    // this.#latestInitData!.forEach((initData, index) => {
-    //   const positionsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].positions.byteLength, 0)
-    //   const idsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].ids.byteLength, 0)
-    //   const textsPositionsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].textsPositions.byteLength, 0)
-    //   const textsOriginsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].textsOrigins.byteLength, 0)
-    //   const textsUVCoordsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].textsUVCoords.byteLength, 0)
-    //   const side = lockSomeSide(initData.buffers[0].control, initData.buffers[1].control)
-    //   gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satellites.buffers.positions)
-    //   gl.bufferSubData(gl.ARRAY_BUFFER, positionsOffset, initData.buffers[side].positions)
-    //   gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satellites.buffers.ids)
-    //   gl.bufferSubData(gl.ARRAY_BUFFER, idsOffset, initData.buffers[side].ids)
-    //   gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.positions)
-    //   gl.bufferSubData(gl.ARRAY_BUFFER, textsPositionsOffset, initData.buffers[side].textsPositions)
-    //   gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.origins)
-    //   gl.bufferSubData(gl.ARRAY_BUFFER, textsOriginsOffset, initData.buffers[side].textsOrigins)
-    //   gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.uvs)
-    //   gl.bufferSubData(gl.ARRAY_BUFFER, textsUVCoordsOffset, initData.buffers[side].textsUVCoords)
-    //   unlock(initData.buffers[side].control)
-    // })
 
     if (this.#mustRecreateWebGLBuffers && this.#latestInitData) {
       gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satellites.buffers.positions)

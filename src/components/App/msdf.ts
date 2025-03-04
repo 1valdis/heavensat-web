@@ -2,14 +2,14 @@ import type MsdfDefinitionFile from './assets/msdf-definition.json'
 
 export type MsdfDefinition = typeof MsdfDefinitionFile
 
-type CharInfo = MsdfDefinition['chars'][0];
+type CharInfo = MsdfDefinition['chars'][number]
 
 export type MsdfGeometry = {
   width: number;
   chars: {
-      iXY: [number, number];
-      iUV: [number, number];
-      iSize: [number, number];
+    iXY: [number, number];
+    iUV: [number, number];
+    iSize: [number, number];
   }[];
 }
 
@@ -54,12 +54,12 @@ export class MsdfGeometryBuilder {
       width: 0,
       chars: []
     } as {
-        width: number;
-        chars: {
-            iXY: [number, number];
-            iUV: [number, number];
-            iSize: [number, number];
-        }[];
+      width: number;
+      chars: {
+        iXY: [number, number];
+        iUV: [number, number];
+        iSize: [number, number];
+      }[];
     })
   }
 }

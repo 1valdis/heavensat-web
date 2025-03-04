@@ -6,7 +6,7 @@
       "dom.iterable",
       "esnext"
     ],
-    "types": ["vite/client", "vite-plugin-pwa/react"],
+    "types": ["vite/client"],
     "allowJs": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -28,6 +28,6 @@
     "src"
   ],
   "exclude": [
-    "src/components/App/experiments"
+    "eslint.config.ts"
   ]
 }

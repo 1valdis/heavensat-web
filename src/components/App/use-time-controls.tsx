@@ -13,7 +13,7 @@ export const useTimeControls = (): TimeControls => {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [offsetMilliseconds, setOffsetMilliseconds] = useState(+currentDate - +new Date())
   const { start, stop, isStopped } = useAnimationFrameLoop(
-    () => setCurrentDate(new Date(+new Date() + offsetMilliseconds)), { startOnMount: true }
+    () => { setCurrentDate(new Date(+new Date() + offsetMilliseconds)) }, { startOnMount: false }
   )
 
   const play = useCallback(() => {

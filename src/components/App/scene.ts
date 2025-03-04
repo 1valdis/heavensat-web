@@ -377,7 +377,7 @@ export const drawGrid = (gl: WebGL2RenderingContext, program: WebGLProgram, proj
 // const raToRad = (hours: number, minutes: number, seconds: number) => (hours + minutes / 60 + seconds / 3600) * 15 * Math.PI / 180
 // const decToRad = (degrees: number, minutes: number, seconds: number) => (degrees + minutes / 60 + seconds / 3600) * Math.PI / 180
 
-export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4, point: {x: number, y: number, z: number}) => {
+export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, projectionMatrix: mat4, modelViewMatrix: mat4, point: { x: number, y: number, z: number }) => {
   gl.useProgram(program)
 
   const debugPointPositions = [
@@ -495,6 +495,18 @@ const drawSky = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgram
   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
 }
 
+// const drawSolarSystemBodies = (gl: WebGL2RenderingContext, date: Date, location: Location) => {
+//   const observer = new Observer(location.latitude, location.longitude, location.altitude)
+//   const [sun, moon, mercury, venus, mars, saturn, jupiter, uranus, neptune] =
+//     [Body.Sun, Body.Moon, Body.Mercury, Body.Venus, Body.Mars, Body.Saturn, Body.Jupiter, Body.Uranus, Body.Neptune]
+//       .map(body => {
+//         const observer = new Observer(location.latitude, location.longitude, location.altitude)
+//         const bodyPosition = Equator(body, date, observer, true, false)
+//         const hor = Horizon(date, observer, bodyPosition.ra, bodyPosition.dec)
+//         return lookAnglesToCartesian(degreesToRad(hor.altitude), degreesToRad(hor.azimuth))
+//       })
+// }
+
 export const createMatrices = ({ viewport, fov, location, panning, date }: {
   viewport: Viewport;
   fov: number;
@@ -588,7 +600,8 @@ export const selectSceneObject = ({ gl, shaderPrograms, point, viewport, fov, lo
   date: Date
   panning: Panning
   propagatedSatellites: Float32Array,
-  propagatedIds: Int32Array }
+  propagatedIds: Int32Array
+}
 ): { type: 'satellite', satelliteId: number } | { type: 'star', starId: number } | null => {
   const { projectionMatrix, groundViewMatrix, skyViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
 
