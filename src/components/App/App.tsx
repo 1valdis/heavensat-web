@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, MouseEvent as ReactMouseEvent, use } from 'react'
 // import { useRegisterSW } from 'virtual:pwa-register/react'
 import './App.css'
 import { degreesToRad } from './celestial'
@@ -7,7 +7,7 @@ import { useCameraControls } from './use-camera-controls'
 import { createMatrices, drawScene, selectSceneObject, setupShaderPrograms, ShaderProgramsMap } from './scene'
 import { Location, Panning } from './common-types'
 import { ConcurrentPropagator } from './propagator'
-import { getAssets } from './assets-loader'
+import { fetchAssets } from './assets-loader'
 import { useTimeControls } from './use-time-controls'
 import { useSatellites } from './use-satellites.js'
 import { mat4, vec3 } from 'gl-matrix'
@@ -26,6 +26,7 @@ const minFov = 0.5
 const zoomSensitivity = 0.0025
 
 const propagator = new ConcurrentPropagator()
+const assetsPromise = fetchAssets()
 
 function App () {
   const [viewportX, setViewportX] = useState<number>(window.innerWidth * devicePixelRatio)
@@ -39,7 +40,7 @@ function App () {
   const [satelliteNamesVisible, setSatelliteNamesVisible] = useState(true)
   const switchSatelliteNamesVisibility = useCallback(() => setSatelliteNamesVisible(current => !current), [setSatelliteNamesVisible])
 
-  const assets = getAssets()
+  const assets = use(assetsPromise)
 
   const { satellitesMap, satellites } = useSatellites(assets)
 
