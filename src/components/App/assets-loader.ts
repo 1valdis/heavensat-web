@@ -1,7 +1,7 @@
-import satelliteImage from './assets/sat.png'
-import msdfImage from './assets/msdf.png'
-import satelliteCatalog from './assets/3le.txt?url'
-import { HIPStarOriginal } from './common-types'
+import satelliteImage from '../assets/sat.png'
+import msdfImage from '../assets/msdf.png'
+import satelliteCatalog from '../assets/3le.txt?url'
+import { HIPStarOriginal } from '../common-types.js'
 import type MsdfDefinition from './assets/msdf-definition.json'
 
 export type Assets = {
@@ -30,10 +30,10 @@ export async function fetchAssets (): Promise<Assets> {
   const [satelliteLoaded, msdfLoaded, starCatalog, constellationLineship, satelliteCatalogLoaded, msdfDefinition] = await Promise.all([
     loadImage(satelliteImage),
     loadImage(msdfImage),
-    import('./assets/hipparcos_8_concise.json'),
-    import('./assets/constellations.json'),
+    import('../assets/hipparcos_8_concise.json'),
+    import('../assets/constellations.json'),
     fetch(satelliteCatalog).then(r => r.text()),
-    import('./assets/msdf-definition.json')
+    import('../assets/msdf-definition.json')
   ])
 
   return {

@@ -1,10 +1,10 @@
 import * as satellite from 'satellite.js'
-import { MsdfGeometry, MsdfGeometryBuilder, MsdfDefinition } from '../msdf.js'
-import { Location, Satellite } from '../common-types.js'
-import { chunkify } from '../chunkify.js'
+import { MsdfGeometry, MsdfGeometryBuilder, MsdfDefinition } from '../../Scene/msdf.js'
+import { Location, Satellite } from '../../common-types.js'
+import { chunkify } from '../../Scene/chunkify.js'
 import { PropagateQuery, InitQuery, WorkerAnswer, Buffers } from './message-types-sab.js'
 import { BYTES_PER_FLOAT, getControlBytesSize, getHalfDoubleBufferBytesSize, getIdsBytesSize, getPositionsBytesSize, getTextsOriginsBytesSize, getTextsPositionsBytesSize, getTextsUVsBytesSize, getTotalBytesSize } from './sab-offsets.js'
-import { ShaderProgramsMap } from '../scene.js'
+import { ShaderProgramsMap } from '../../Scene/Scene.js'
 import { lockSomeSide, unlock } from './lock.js'
 
 function concat (arrays: Float32Array[]): Float32Array

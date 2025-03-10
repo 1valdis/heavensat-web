@@ -1,8 +1,8 @@
 /* eslint-disable no-redeclare */
 import * as ootk from 'ootk'
 import * as satellite from 'satellite.js'
-import { WorkerAnswer, WorkerQuery } from '../message-types'
-import { MsdfGeometry, MsdfGeometryBuilder } from '../msdf'
+import { WorkerAnswer, WorkerQuery } from '../../Scene/message-types'
+import { MsdfGeometry, MsdfGeometryBuilder } from '../../Scene/msdf'
 
 function lookAnglesToCartesian (elevation: number, azimuth: number): [number, number, number] {
   const x = Math.cos(elevation) * Math.cos(azimuth)

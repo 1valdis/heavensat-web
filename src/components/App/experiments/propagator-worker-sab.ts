@@ -1,7 +1,7 @@
 /* eslint-disable no-redeclare */
 import * as satellite from 'satellite.js'
 import { WorkerQuery, WorkerAnswer, Buffers } from './message-types-sab.js'
-import { MsdfGeometry, MsdfGeometryBuilder } from '../msdf.js'
+import { MsdfGeometry, MsdfGeometryBuilder } from '../../Scene/msdf.js'
 import { lock, unlock } from './lock.js'
 
 const INVISIBLE_POSITION = new Float32Array([10, 0, 0])

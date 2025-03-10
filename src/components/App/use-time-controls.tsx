@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import useAnimationFrameLoop from './use-animation-frame'
+import useAnimationFrameLoop from '../Scene/use-animation-frame'
 
 export type TimeControls = {
   start: () => void,

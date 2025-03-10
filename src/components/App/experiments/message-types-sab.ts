@@ -1,5 +1,5 @@
-import { Location, Satellite } from '../common-types'
-import { MsdfDefinition } from '../msdf'
+import { Location, Satellite } from '../../common-types'
+import { MsdfDefinition } from '../../Scene/msdf'
 
 export type BasicEvent = {
   queryId: string
