@@ -296,14 +296,16 @@ const drawGround = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProg
   gl.drawArrays(gl.TRIANGLE_FAN, 0, 4)
 }
 
-const drawSatellites = (gl: WebGL2RenderingContext, { program, texture, buffers }: ShaderProgramsMap['satellites'], propagatedSatellites: Float32Array, propagatedIds: Int32Array, projectionMatrix: mat4, modelViewMatrix: mat4) => {
+const drawSatellites = (gl: WebGL2RenderingContext, { program, texture, buffers }: ShaderProgramsMap['satellites'], getPropagationResults: () => PropagationResults, projectionMatrix: mat4, modelViewMatrix: mat4) => {
   gl.useProgram(program)
 
   gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, texture)
 
+  const { propagatedIds, propagatedPositions } = getPropagationResults()
+
   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.positions)
-  gl.bufferData(gl.ARRAY_BUFFER, propagatedSatellites, gl.STREAM_DRAW)
+  gl.bufferData(gl.ARRAY_BUFFER, propagatedPositions, gl.STREAM_DRAW)
   const positionLocation = gl.getAttribLocation(program, 'a_position')
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
@@ -328,7 +330,7 @@ const drawSatellites = (gl: WebGL2RenderingContext, { program, texture, buffers 
 
   gl.uniform4fv(gl.getUniformLocation(program, 'u_color'), new Float32Array([0, 1, 0, 1]))
   gl.uniform1f(gl.getUniformLocation(program, 'u_size'), 16 * devicePixelRatio)
-  gl.drawArrays(gl.POINTS, 0, propagatedSatellites.length / 3)
+  gl.drawArrays(gl.POINTS, 0, propagatedPositions.length / 3)
 }
 
 const azimuthalGrid = new Float32Array(Array.from({ length: 9 }, (item, index) => {
@@ -405,7 +407,7 @@ export const drawDebug = (gl: WebGL2RenderingContext, program: WebGLProgram, pro
   gl.drawArrays(gl.POINTS, 0, debugPointPositions.length / 3)
 }
 
-const drawNames = (gl: WebGL2RenderingContext, { program, texture, buffers }: ShaderProgramsMap['satelliteNames'], propagationResults: PropagationResults, projectionMatrix: mat4, modelViewMatrix: mat4, viewport: Viewport) => {
+const drawNames = (gl: WebGL2RenderingContext, { program, texture, buffers }: ShaderProgramsMap['satelliteNames'], getPropagationResults: () => PropagationResults, projectionMatrix: mat4, modelViewMatrix: mat4, viewport: Viewport) => {
   gl.useProgram(program)
   gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, texture)
@@ -431,6 +433,8 @@ const drawNames = (gl: WebGL2RenderingContext, { program, texture, buffers }: Sh
   const uvCoordLocation = gl.getAttribLocation(program, 'a_uvCoord')
   const originCoordLocation = gl.getAttribLocation(program, 'a_origin')
 
+  const propagationResults = getPropagationResults()
+
   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texts)
   gl.bufferData(gl.ARRAY_BUFFER, propagationResults.texts, gl.STREAM_DRAW)
 
@@ -441,7 +445,7 @@ const drawNames = (gl: WebGL2RenderingContext, { program, texture, buffers }: Sh
   gl.vertexAttribPointer(uvCoordLocation, 2, gl.FLOAT, false, 7 * 4, 5 * 4)
   gl.enableVertexAttribArray(uvCoordLocation)
 
-  gl.drawArrays(gl.TRIANGLES, 0, propagationResults.texts.length / 3 / 7)
+  gl.drawArrays(gl.TRIANGLES, 0, propagationResults.texts.length / 7)
 }
 
 const drawSky = (gl: WebGL2RenderingContext, { program, buffers }: ShaderProgramsMap['sky'], projectionMatrix: mat4, modelViewMatrix: mat4, viewport: Viewport, date: Date, location: Location) => {
@@ -542,7 +546,7 @@ export const createMatrices = ({ viewport, fov, location, panning, date }: {
   }
 }
 
-export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date, propagatedSatellites, satelliteNamesVisible, selectedStarCoords }: {
+export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning, date, getPropagationResults, satelliteNamesVisible, selectedStarCoords }: {
   gl: WebGL2RenderingContext;
   shaderPrograms: ShaderProgramsMap;
   viewport: Viewport;
@@ -550,7 +554,7 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   location: Location;
   date: Date
   panning: Panning;
-  propagatedSatellites: PropagationResults,
+  getPropagationResults: () => PropagationResults,
   satelliteNamesVisible: boolean,
   selectedStarCoords: null | [ra: number, dec: number]
 }) => {
@@ -564,9 +568,9 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
   drawStars(gl, shaderPrograms.stars, date, projectionMatrix, skyViewMatrix)
   // drawSolarSystemBodies(gl)
   drawGround(gl, shaderPrograms.ground, projectionMatrix, groundViewMatrix, viewport)
-  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites.propagatedPositions, propagatedSatellites.propagatedIds, projectionMatrix, groundViewMatrix)
+  drawSatellites(gl, shaderPrograms.satellites, getPropagationResults, projectionMatrix, groundViewMatrix)
   if (satelliteNamesVisible) {
-    drawNames(gl, shaderPrograms.satelliteNames, propagatedSatellites, projectionMatrix, groundViewMatrix, viewport)
+    drawNames(gl, shaderPrograms.satelliteNames, getPropagationResults, projectionMatrix, groundViewMatrix, viewport)
   }
   // if (selectedPoint) {
   //   drawDebug(gl, shaderPrograms.debug, projectionMatrix, groundViewMatrix, selectedPoint)
@@ -580,7 +584,7 @@ function cleanup (gl: WebGL2RenderingContext) {
   gl.clearColor(0, 0, 0, 1)
 }
 
-export const selectSceneObject = ({ gl, shaderPrograms, point, viewport, fov, location, panning, date, propagatedSatellites, propagatedIds }: {
+export const selectSceneObject = ({ gl, shaderPrograms, point, viewport, fov, location, panning, date, getPropagationResults }: {
   gl: WebGL2RenderingContext,
   shaderPrograms: ShaderProgramsMap,
   point: { x: number, y: number },
@@ -589,8 +593,7 @@ export const selectSceneObject = ({ gl, shaderPrograms, point, viewport, fov, lo
   location: Location
   date: Date
   panning: Panning
-  propagatedSatellites: Float32Array,
-  propagatedIds: Int32Array
+  getPropagationResults: () => PropagationResults
 }
 ): { type: 'satellite', satelliteId: number } | { type: 'star', starId: number } | null => {
   const { projectionMatrix, groundViewMatrix, skyViewMatrix } = createMatrices({ viewport, fov, location, panning, date })
@@ -613,7 +616,7 @@ export const selectSceneObject = ({ gl, shaderPrograms, point, viewport, fov, lo
   const pixelX = point.x * gl.canvas.width / (gl.canvas as HTMLCanvasElement).clientWidth
   const pixelY = gl.canvas.height - point.y * gl.canvas.height / (gl.canvas as HTMLCanvasElement).clientHeight - 1
 
-  drawSatellites(gl, shaderPrograms.satellites, propagatedSatellites, propagatedIds, projectionMatrix, groundViewMatrix)
+  drawSatellites(gl, shaderPrograms.satellites, getPropagationResults, projectionMatrix, groundViewMatrix)
 
   gl.readPixels(
     pixelX, // x

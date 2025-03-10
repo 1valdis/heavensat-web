@@ -59,7 +59,7 @@ function App () {
     propagator.addEventListener('propagate-result', callback)
     return () => propagator.removeEventListener('propagate-result', callback)
   }, [])
-  const propagatedSatellites = useSyncExternalStore(subscribe, () => propagator.propagated)
+  const propagatedSatellitesVersion = useSyncExternalStore(subscribe, () => propagator.propagatedResultId)
 
   const ref = useRef<HTMLCanvasElement>(null)
   const glRef = useRef<WebGL2RenderingContext>(null)
@@ -180,11 +180,11 @@ function App () {
       location,
       date,
       panning,
-      propagatedSatellites,
+      getPropagationResults: () => propagator.propagated,
       satelliteNamesVisible,
       selectedStarCoords: star ? [star[2], star[3]] : null
     })
-  }, [shaderPrograms, panning, fov, viewportX, viewportY, location, date, propagatedSatellites, satelliteNamesVisible, selectedStarId, assets])
+  }, [propagatedSatellitesVersion, shaderPrograms, panning, fov, viewportX, viewportY, location, date, satelliteNamesVisible, selectedStarId, assets])
 
   const [mouseDownCoords, setMouseDownCoords] = useState<{ x: number, y: number } | null>(null)
   const updateMouseDownPosition = useCallback((event: ReactMouseEvent<HTMLCanvasElement, MouseEvent>) => setMouseDownCoords({ x: event.clientX, y: event.clientY }), [setMouseDownCoords])
@@ -207,8 +207,7 @@ function App () {
       location,
       date,
       panning,
-      propagatedSatellites: propagatedSatellites.propagatedPositions,
-      propagatedIds: propagatedSatellites.propagatedIds
+      getPropagationResults: () => propagator.propagated
     })
     if (object) {
       if (object.type === 'satellite') {
@@ -218,7 +217,7 @@ function App () {
         setSelectedStarId(object.starId)
       }
     }
-  }, [date, fov, location, mouseDownCoords, panning, propagatedSatellites, shaderPrograms, viewportX, viewportY])
+  }, [date, fov, location, mouseDownCoords, panning, shaderPrograms, viewportX, viewportY])
 
   return (
     <ThemeProvider theme={darkTheme}>
