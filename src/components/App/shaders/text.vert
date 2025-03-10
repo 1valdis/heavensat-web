@@ -7,7 +7,7 @@ uniform vec2 u_viewportInPixels;
 uniform float size;
 
 in vec2 a_position;
-in vec4 a_origin;
+in vec3 a_origin;
 in vec2 a_uvCoord;
 out vec4 color;
 
@@ -15,7 +15,7 @@ out vec2 uvCoord;
 
 void main() {
   ivec2 spriteSize = textureSize(u_spriteTexture, 0);
-  vec4 projectedOriginKek = u_projectionMatrix * u_modelViewMatrix * a_origin;
+  vec4 projectedOriginKek = u_projectionMatrix * u_modelViewMatrix * vec4(a_origin, 1.0);
   vec4 projectedOrigin = projectedOriginKek / abs(projectedOriginKek.w);
   uvCoord = vec2(a_uvCoord.x / float(textureSize(u_spriteTexture, 0).x), a_uvCoord.y / float(textureSize(u_spriteTexture, 0).y));
   if (spriteSize.y == 512) {

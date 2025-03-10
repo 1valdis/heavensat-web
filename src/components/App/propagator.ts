@@ -34,9 +34,7 @@ class Propagator extends typedEventTarget {
   #propagated: PropagationResults = {
     propagatedPositions: new Float32Array(0),
     propagatedIds: new Int32Array(0),
-    textsOrigins: new Float32Array(0),
-    textsPositions: new Float32Array(0),
-    textsUVCoords: new Float32Array(0)
+    texts: new Float32Array(0)
   }
 
   #failedNorads: string[] = []
@@ -99,9 +97,7 @@ class Propagator extends typedEventTarget {
 export type PropagationResults = {
   propagatedPositions: Float32Array,
   propagatedIds: Int32Array,
-  textsOrigins: Float32Array,
-  textsPositions: Float32Array,
-  textsUVCoords: Float32Array
+  texts: Float32Array
 }
 
 export class ConcurrentPropagator extends typedEventTarget {
@@ -112,7 +108,7 @@ export class ConcurrentPropagator extends typedEventTarget {
       const propagator = new Propagator()
       propagator.addEventListener('propagate-result', () => {
         this.dispatchEvent(new CustomEvent('propagate-result'))
-        const keysToConcatenate: (keyof PropagationResults)[] = ['propagatedPositions', 'propagatedIds', 'textsOrigins', 'textsPositions', 'textsUVCoords']
+        const keysToConcatenate: (keyof PropagationResults)[] = ['propagatedPositions', 'propagatedIds', 'texts']
         const resultArrays = keysToConcatenate.map(key => {
           const resultArray = new (key === 'propagatedIds' ? Int32Array : Float32Array)(this.workers.reduce((acc, current) => acc + current.propagator.propagated[key].length, 0))
           let currentOffset = 0
@@ -125,9 +121,7 @@ export class ConcurrentPropagator extends typedEventTarget {
         this.#propagated = {
           propagatedPositions: resultArrays[0]! as Float32Array,
           propagatedIds: resultArrays[1]! as Int32Array,
-          textsOrigins: resultArrays[2]! as Float32Array,
-          textsPositions: resultArrays[3]! as Float32Array,
-          textsUVCoords: resultArrays[4]! as Float32Array
+          texts: resultArrays[2]! as Float32Array
         }
       })
       return {
@@ -139,9 +133,7 @@ export class ConcurrentPropagator extends typedEventTarget {
   #propagated: PropagationResults = {
     propagatedPositions: new Float32Array(0),
     propagatedIds: new Int32Array(0),
-    textsOrigins: new Float32Array(0),
-    textsPositions: new Float32Array(0),
-    textsUVCoords: new Float32Array(0)
+    texts: new Float32Array(0)
   }
 
   public get propagated (): PropagationResults {

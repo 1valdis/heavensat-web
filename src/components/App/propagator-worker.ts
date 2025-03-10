@@ -2,6 +2,12 @@ import * as satellite from 'satellite.js'
 import { WorkerAnswer, WorkerQuery } from './message-types'
 import { MsdfGeometry, MsdfGeometryBuilder } from './msdf'
 
+const VERTICES_PER_QUAD = 6
+const FLOATS_PER_ORIGIN = 3
+const FLOATS_PER_POSITION = 2
+const FLOATS_PER_UV = 2
+const FLOATS_PER_VERTEX = FLOATS_PER_POSITION + FLOATS_PER_ORIGIN + FLOATS_PER_UV
+
 function lookAnglesToCartesian (elevation: number, azimuth: number): [number, number, number] {
   const x = Math.cos(elevation) * Math.cos(azimuth)
   const y = -Math.cos(elevation) * Math.sin(azimuth)
@@ -21,19 +27,6 @@ function concat (arrays: Float32Array[] | Int32Array[]): Float32Array | Int32Arr
   for (const array of arrays) {
     result.set(array, length)
     length += array.length
-  }
-
-  return result
-}
-
-// fast duplicate of Float32Array, useful for same data for multiple vertices
-function duplicate (array: Float32Array, times: number) {
-  const newLength = array.length * times
-
-  const result = new Float32Array(newLength)
-
-  for (let i = 0; i < times; i++) {
-    result.set(array, i * array.length)
   }
 
   return result
@@ -125,13 +118,33 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
     const positionsArray = concat(successful.map(position => new Float32Array(position.cartesian!)))
     const idsArray = concat(successful.map(position => new Int32Array([noradToIdMap.get(position.norad)!])))
 
-    const textsOrigins = concat(
-      successful.map(
-        satellite => duplicate(new Float32Array(satellite.cartesian), 6 * geometriesMap.get(satellite.norad)!.chars.length)
-      )
-    )
-    const textsPositions = concat(successful.map(satellite => geometriesPositionsMap.get(satellite.norad)!))
-    const textsUVCoords = concat(successful.map(satellite => geometriesUVCoordsMap.get(satellite.norad)!))
+    const totalSymbols = successful.reduce((acc, sat) => acc + geometriesMap.get(sat.norad)!.chars.length, 0)
+    const length = FLOATS_PER_VERTEX * VERTICES_PER_QUAD * totalSymbols
+    const interleavedTexts = new Float32Array(length)
+
+    const originOffset = FLOATS_PER_POSITION
+    const uvOffset = originOffset + FLOATS_PER_ORIGIN
+    for (let satI = 0, totalSymbolI = 0; satI < successful.length; satI++) {
+      const sat = successful[satI]!
+      const geometry = geometriesMap.get(sat.norad)
+      const geometryPositionMap = geometriesPositionsMap.get(sat.norad)!
+      const geometryUVCoords = geometriesUVCoordsMap.get(sat.norad)!
+      for (let symbolWithinNameI = 0; symbolWithinNameI < geometry!.chars.length; symbolWithinNameI++) {
+        const startingOffsetOfSymbol = (totalSymbolI + symbolWithinNameI) * FLOATS_PER_VERTEX * VERTICES_PER_QUAD
+        for (let vertexOfQuad = 0; vertexOfQuad < VERTICES_PER_QUAD; vertexOfQuad++) {
+          const vertexWithOffsets = startingOffsetOfSymbol + vertexOfQuad * FLOATS_PER_VERTEX
+          // 7 numbers per vertex: 2 for position, 3 for origin, 2 for uv
+          interleavedTexts[vertexWithOffsets] = geometryPositionMap[symbolWithinNameI * VERTICES_PER_QUAD * FLOATS_PER_POSITION + vertexOfQuad * FLOATS_PER_POSITION]!
+          interleavedTexts[vertexWithOffsets + 1] = geometryPositionMap[symbolWithinNameI * VERTICES_PER_QUAD * FLOATS_PER_POSITION + vertexOfQuad * FLOATS_PER_POSITION + 1]!
+          interleavedTexts[vertexWithOffsets + originOffset] = sat.cartesian[0]!
+          interleavedTexts[vertexWithOffsets + originOffset + 1] = sat.cartesian[1]!
+          interleavedTexts[vertexWithOffsets + originOffset + 2] = sat.cartesian[2]!
+          interleavedTexts[vertexWithOffsets + uvOffset] = geometryUVCoords[symbolWithinNameI * VERTICES_PER_QUAD * FLOATS_PER_UV + vertexOfQuad * FLOATS_PER_UV]!
+          interleavedTexts[vertexWithOffsets + uvOffset + 1] = geometryUVCoords[symbolWithinNameI * VERTICES_PER_QUAD * FLOATS_PER_UV + vertexOfQuad * FLOATS_PER_UV + 1]!
+        }
+      }
+      totalSymbolI += geometry!.chars.length
+    }
 
     typedPostMessage({
       type: 'process',
@@ -139,13 +152,11 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
         failedNorads: positions.filter((position) => !position.cartesian).map(position => position.norad),
         propagatedPositions: positionsArray,
         propagatedIds: idsArray,
-        textsOrigins,
-        textsPositions,
-        textsUVCoords
+        texts: interleavedTexts,
       },
       queryId
     // idk why typescript thinks I can't transfer an ArrayBuffer??
     // @ts-expect-error Type 'ArrayBufferLike[]' has no properties in common with type 'WindowPostMessageOptions'.
-    }, [positionsArray.buffer, textsOrigins.buffer, textsPositions.buffer, textsUVCoords.buffer])
+    }, [positionsArray.buffer, interleavedTexts.buffer])
   }
 }

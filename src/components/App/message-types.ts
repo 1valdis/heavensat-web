@@ -31,9 +31,7 @@ export type PropagateAnswer = BasicEvent & {
     failedNorads: string[],
     propagatedPositions: Float32Array
     propagatedIds: Int32Array
-    textsOrigins: Float32Array
-    textsPositions: Float32Array
-    textsUVCoords: Float32Array
+    texts: Float32Array
   }
 }
 
