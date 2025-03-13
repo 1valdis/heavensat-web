@@ -1,5 +1,5 @@
 import { FC, useCallback } from 'react'
-import { FormControl, IconButton, Input, InputAdornment, InputLabel, Stack } from '@mui/material'
+import { Button, FormControl, IconButton, Input, InputAdornment, InputLabel, Stack } from '@mui/material'
 import { Add, Pause, PlayArrow, Remove } from '@mui/icons-material'
 import { DateTime, DurationLikeObject } from 'luxon'
 
@@ -139,6 +139,7 @@ export const TimeControls: FC<{
       <IconButton size='large' aria-label={isPlaying ? 'Pause' : 'Play'} onClick={isPlaying ? stop : start}>
         {isPlaying ? <Pause /> : <PlayArrow />}
       </IconButton>
+      <Button variant='outlined' onClick={() => setDate(new Date())}>Now</Button>
     </Stack>
   )
 }
