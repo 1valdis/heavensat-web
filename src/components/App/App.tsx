@@ -1,12 +1,14 @@
 import { use, useState } from 'react'
 import { fetchAssets } from './assets-loader.js'
 import { TopMenu } from '../TopMenu/TopMenu.js'
-import { BottomControls } from '../BottomControls/BottomControls.js'
+import { BottomBar } from '../BottomBar/BottomBar.js'
 import { useTimeControls } from './use-time-controls.js'
 import { Location } from '../common-types.js'
 import { Scene } from '../Scene/Scene.js'
 import { createTheme, CssBaseline, ThemeProvider } from '@mui/material'
 import './App.css'
+import { LocationControls } from '../LocationControls/LocationControls.js'
+import { TimeControls } from '../TimeControls/TimeControls.js'
 
 const darkTheme = createTheme({
   palette: {
@@ -18,7 +20,7 @@ const assetsPromise = fetchAssets()
 
 export const App = () => {
   const assets = use(assetsPromise)
-  const { start, stop, isPlaying, date, setDate } = useTimeControls()
+  const timeControls = useTimeControls()
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0 })
   const [selectedStarId, setSelectedStarId] = useState<number | null>(null)
   const [selectedSatelliteId, setSelectedSatelliteId] = useState<number | null>(null)
@@ -32,7 +34,7 @@ export const App = () => {
         <TopMenu />
         <Scene
           assets={assets}
-          date={date}
+          date={timeControls.date}
           location={location}
           areSatelliteNamesVisible={satelliteNamesVisible}
           selectedSatelliteId={selectedSatelliteId}
@@ -40,7 +42,10 @@ export const App = () => {
           selectedStarId={selectedStarId}
           setSelectedStarId={setSelectedStarId}
         />
-        <BottomControls date={date} start={start} stop={stop} setDate={setDate} isPlaying={isPlaying} location={location} zone='Europe/Kiev' />
+        <BottomBar>
+          <LocationControls setLocation={setLocation} location={location} />
+          <TimeControls {...timeControls} zone='Europe/Kiev' />
+        </BottomBar>
       </div>
     </ThemeProvider>
   )

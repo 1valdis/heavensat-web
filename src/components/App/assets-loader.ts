@@ -2,7 +2,7 @@ import satelliteImage from '../assets/sat.png'
 import msdfImage from '../assets/msdf.png'
 import satelliteCatalog from '../assets/3le.txt?url'
 import { HIPStarOriginal } from '../common-types.js'
-import type MsdfDefinition from './assets/msdf-definition.json'
+import type MsdfDefinition from '../assets/msdf-definition.json'
 
 export type Assets = {
   textures: {

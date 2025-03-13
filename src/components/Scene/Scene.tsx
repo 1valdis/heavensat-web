@@ -62,7 +62,7 @@ export const Scene = ({
   const [shaderPrograms, setShaderPrograms] = useState<ShaderProgramsMap>()
 
   useEffect(() => {
-    const gl = ref.current!.getContext('webgl2', { antialias: false, desynchronized: true })!
+    const gl = ref.current!.getContext('webgl2', { antialias: false, desynchronized: true, depth: false, alpha: false, stencil: false })!
     glRef.current = gl
     if (!shaderPrograms) {
       setShaderPrograms(setupShaderPrograms(glRef.current, assets))

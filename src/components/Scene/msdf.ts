@@ -1,4 +1,4 @@
-import type MsdfDefinitionFile from '../App/assets/msdf-definition.json'
+import type MsdfDefinitionFile from '../assets/msdf-definition.json'
 
 export type MsdfDefinition = typeof MsdfDefinitionFile
 
