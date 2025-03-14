@@ -1,8 +1,26 @@
 import { FC, memo, useCallback, useEffect, useState } from 'react'
 import { Location } from '../common-types.js'
-import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItemButton, ListItemText, Menu, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material'
+import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItemButton, ListItemText, Menu, MenuItem, Select, Stack, TextField, Tooltip, Typography } from '@mui/material'
 import { AddLocationAltOutlined, DeleteForeverOutlined, MyLocation } from '@mui/icons-material'
 import { DeviceLocation, useLocations, ZeroLocation } from './use-locations.js'
+import { DateTime } from 'luxon'
+
+export const DeviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+const timeZones = Intl.supportedValuesOf('timeZone').map(tz => ({
+  text: DateTime.local().setZone(tz).toFormat('ZZ z ZZZZ'),
+  zone: tz
+})).sort((a, b) => a.text > b.text ? 1 : -1)
+const foundCurrentZoneInTheList = timeZones.find(tz => tz.zone === DeviceTimeZone)
+if (!foundCurrentZoneInTheList) {
+  throw new Error('Current time zone not found in the list of supported time zones')
+}
+
+const timeZonesWithSpecial = [
+  { text: `Device time zone: ${DateTime.local().setZone(DeviceTimeZone).toFormat('ZZ z ZZZZ')}`, zone: DeviceTimeZone },
+  { text: 'UTC', zone: 'UTC' },
+  ...timeZones.filter(tz => tz !== foundCurrentZoneInTheList),
+]
 
 const LocationControlsFC: FC<{ setLocation: (location: Location) => void, location: Location }> = ({ setLocation, location }) => {
   const [{ locations, selected }, dispatch] = useLocations()
@@ -13,7 +31,8 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
       (position) => setLocation({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
-        altitude: position.coords.altitude ?? 0
+        altitude: position.coords.altitude ?? 0,
+        timezone: DeviceTimeZone
       })
     )
   }, [setLocation])
@@ -23,7 +42,7 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
       updateDeviceLocation()
     }
     if (selected === ZeroLocation) {
-      setLocation({ latitude: 0, longitude: 0, altitude: 0 })
+      setLocation({ latitude: 0, longitude: 0, altitude: 0, timezone: DeviceTimeZone })
     }
     if (typeof selected === 'string') {
       const location = locations.find(l => l.id === selected)
@@ -61,8 +80,8 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
 
   return (
     <Stack direction='row' useFlexGap spacing={1} justifyItems='center' alignItems='center' height='100%'>
-      <Tooltip title='Your location data never leaves your browser. It is used solely to calculate the sky and satellite data for you.' arrow enterDelay={300}>
-        <IconButton size='small' onClick={() => dispatch({ type: 'SET_DEVICE' })}><MyLocation /></IconButton>
+      <Tooltip title="Your location data never leaves your device and isn't sent anywhere. It is used solely to calculate the sky and satellite data for you." arrow enterDelay={300}>
+        <IconButton color={selected === DeviceLocation ? 'primary' : 'default'} size='large' onClick={() => dispatch({ type: 'SET_DEVICE' })}><MyLocation /></IconButton>
       </Tooltip>
       <List dense>
         <ListItemButton onClick={handleClickListItem}>
@@ -70,7 +89,7 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
             ? <Alert variant='outlined' severity='warning'>No location selected</Alert>
             : <ListItemText
                 primary={textOnButtonWithNonZeroLocation}
-                secondary={<>{location.latitude}, {location.longitude} ({location.altitude} m)</>}
+                secondary={<>{location.latitude}, {location.longitude} ({location.altitude} m)<br />{location.timezone}</>}
               />}
         </ListItemButton>
       </List>
@@ -98,6 +117,7 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
               <Stack direction='column' alignItems='start' gap={1}>
                 <Typography variant='body1'>{location.name}</Typography>
                 <Typography variant='caption'>{location.latitude}, {location.longitude} ({location.altitude} m)</Typography>
+                <Typography variant='caption'>{location.timezone}</Typography>
               </Stack>
               <IconButton onClick={(event) => { dispatch({ type: 'DELETE', id: location.id }); event.stopPropagation() }}><DeleteForeverOutlined /></IconButton>
             </Stack>
@@ -119,9 +139,9 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
             onSubmit: (event: React.FormEvent<HTMLFormElement>) => {
               event.preventDefault()
               const formData = new FormData(event.currentTarget)
-              const formJson = Object.fromEntries(formData.entries()) as { name: string, latitude: string, longitude: string, altitude: string }
+              const formJson = Object.fromEntries(formData.entries()) as { name: string, latitude: string, longitude: string, altitude: string, timezone: string }
               setNewLocationDialogOpen(false)
-              dispatch({ type: 'ADD', location: { name: formJson.name, latitude: +formJson.latitude, longitude: +formJson.longitude, altitude: +formJson.altitude } })
+              dispatch({ type: 'ADD', location: { name: formJson.name, latitude: +formJson.latitude, longitude: +formJson.longitude, altitude: +formJson.altitude, timezone: formJson.timezone } })
             },
           },
         }}
@@ -152,6 +172,7 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
             }}
             fullWidth
             variant='standard'
+            defaultValue={selected === DeviceLocation ? location.latitude : ''}
           />
           <TextField
             required
@@ -168,6 +189,7 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
             }}
             fullWidth
             variant='standard'
+            defaultValue={selected === DeviceLocation ? location.longitude : ''}
           />
           <TextField
             required
@@ -182,7 +204,11 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
             }}
             fullWidth
             variant='standard'
+            defaultValue={selected === DeviceLocation ? location.altitude : ''}
           />
+          <Select style={{ marginTop: '2ch' }} size='medium' required name='timezone' defaultValue={DeviceTimeZone} variant='standard' fullWidth>
+            {timeZonesWithSpecial.map(tz => <MenuItem key={tz.zone} value={tz.zone}>{tz.text}</MenuItem>)}
+          </Select>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setNewLocationDialogOpen(false)}>Cancel</Button>

@@ -1,7 +1,7 @@
 export type Viewport = { x: number, y: number }
 export type Panning = { x: number, y: number }
 // lat, lon in degrees, altitude in m asl
-export type Location = { latitude: number, longitude: number, altitude: number }
+export type Location = { latitude: number, longitude: number, altitude: number, timezone: string }
 export type Satellite = {
   name: string
   norad: string
