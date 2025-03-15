@@ -22,6 +22,13 @@ interface StateEventTarget extends EventTarget {
 
 const typedEventTarget = EventTarget as { new(): StateEventTarget; prototype: StateEventTarget }
 
+type PropagationResults = {
+  propagatedPositions: Float32Array,
+  propagatedIds: Int32Array,
+  texts: Float32Array
+}
+export type PropagationResultsWithChangedFlag = PropagationResults & { changedSinceLastRequest: boolean }
+
 class Propagator extends typedEventTarget {
   private readonly worker = new Worker(
     new URL('./propagator-worker.ts', import.meta.url), { type: 'module' }
@@ -100,12 +107,6 @@ class Propagator extends typedEventTarget {
   }
 }
 
-export type PropagationResults = {
-  propagatedPositions: Float32Array,
-  propagatedIds: Int32Array,
-  texts: Float32Array
-}
-
 export class ConcurrentPropagator extends typedEventTarget {
   private workers: Array<{
     propagator: Propagator
@@ -133,8 +134,8 @@ export class ConcurrentPropagator extends typedEventTarget {
     return this.#propagatedResultId
   }
 
-  public get propagated (): PropagationResults {
-    if (this.#requestedSinceRefresh) { return this.#propagated }
+  public get propagated (): PropagationResultsWithChangedFlag {
+    if (this.#requestedSinceRefresh) { return { ...this.#propagated, changedSinceLastRequest: false } }
     const keysToConcatenate: (keyof PropagationResults)[] = ['propagatedPositions', 'propagatedIds', 'texts']
     const resultArrays = keysToConcatenate.map(key => {
       const resultArray = new (key === 'propagatedIds' ? Int32Array : Float32Array)(this.workers.reduce((acc, current) => acc + current.propagator.propagated[key].length, 0))
@@ -151,7 +152,7 @@ export class ConcurrentPropagator extends typedEventTarget {
       texts: resultArrays[2]! as Float32Array
     }
     this.#requestedSinceRefresh = true
-    return this.#propagated
+    return { ...this.#propagated, changedSinceLastRequest: true }
   }
 
   public get failedNorads (): readonly string[] {
