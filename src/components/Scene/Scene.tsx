@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, MouseEvent as ReactMouseEvent, useMemo } from 'react'
 // import { useRegisterSW } from 'virtual:pwa-register/react'
 import { degreesToRad } from './celestial'
 import useResizeObserver from './use-resize-observer'
@@ -8,12 +8,11 @@ import { Location, Panning } from '../common-types'
 import { ConcurrentPropagator } from './propagator'
 import { Assets } from '../App/assets-loader'
 import { useSatellites } from './use-satellites.js'
+import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 
 const maxFov = 120
 const minFov = 0.5
 const zoomSensitivity = 0.0025
-
-const propagator = new ConcurrentPropagator()
 
 export const Scene = ({
   assets,
@@ -23,6 +22,7 @@ export const Scene = ({
   setSelectedStarId,
   selectedSatelliteId,
   setSelectedSatelliteId,
+  satelliteFilter,
   areSatelliteNamesVisible
 }: {
   assets: Assets,
@@ -32,6 +32,7 @@ export const Scene = ({
   setSelectedStarId: (id: number | null) => void,
   selectedSatelliteId: number | null,
   setSelectedSatelliteId: (id: number | null) => void,
+  satelliteFilter: SatelliteFilter,
   areSatelliteNamesVisible: boolean,
 }) => {
   const [viewportX, setViewportX] = useState<number>(window.innerWidth * devicePixelRatio)
@@ -41,19 +42,16 @@ export const Scene = ({
   const [fov, setFov] = useState(90)
 
   const { satellites } = useSatellites(assets)
+  const propagator = useMemo(() => new ConcurrentPropagator(satellites, assets.msdfDefinition), [satellites, assets.msdfDefinition])
 
   useEffect(() => {
-    propagator.init(satellites, assets.msdfDefinition)
-  }, [satellites, assets])
-
-  useEffect(() => {
-    propagator.process(date, location)
-  }, [date, location])
+    propagator.process(date, location, satelliteFilter)
+  }, [date, location, satelliteFilter, propagator])
 
   const subscribe = useCallback((callback: () => void) => {
     propagator.addEventListener('propagate-result', callback)
     return () => propagator.removeEventListener('propagate-result', callback)
-  }, [])
+  }, [propagator])
   const propagatedSatellitesVersion = useSyncExternalStore(subscribe, () => propagator.propagatedResultId)
 
   const ref = useRef<HTMLCanvasElement>(null)
@@ -179,7 +177,7 @@ export const Scene = ({
       satelliteNamesVisible: areSatelliteNamesVisible,
       selectedStarCoords: star ? [star[2], star[3]] : null
     })
-  }, [propagatedSatellitesVersion, shaderPrograms, panning, fov, viewportX, viewportY, location, date, areSatelliteNamesVisible, selectedStarId, assets])
+  }, [propagatedSatellitesVersion, shaderPrograms, panning, fov, viewportX, viewportY, location, date, areSatelliteNamesVisible, selectedStarId, assets, propagator])
 
   const [mouseDownCoords, setMouseDownCoords] = useState<{ x: number, y: number } | null>(null)
   const updateMouseDownPosition = useCallback((event: ReactMouseEvent<HTMLCanvasElement, MouseEvent>) => setMouseDownCoords({ x: event.clientX, y: event.clientY }), [setMouseDownCoords])
@@ -212,7 +210,7 @@ export const Scene = ({
         setSelectedStarId(object.starId)
       }
     }
-  }, [date, fov, location, mouseDownCoords, panning, shaderPrograms, viewportX, viewportY, setSelectedSatelliteId, setSelectedStarId])
+  }, [date, fov, location, mouseDownCoords, panning, shaderPrograms, viewportX, viewportY, setSelectedSatelliteId, setSelectedStarId, propagator])
 
   return (
     <canvas id='sky' ref={ref} onClick={selectObject} onMouseDown={updateMouseDownPosition} />

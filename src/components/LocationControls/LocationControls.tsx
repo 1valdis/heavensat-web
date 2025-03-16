@@ -132,7 +132,7 @@ const LocationControlsFC: FC<{ setLocation: (location: Location) => void, locati
       </Menu>
       <Dialog
         open={newLocationDialogOpen}
-        onClose={handleClose}
+        onClose={() => setNewLocationDialogOpen(false)}
         slotProps={{
           paper: {
             component: 'form',

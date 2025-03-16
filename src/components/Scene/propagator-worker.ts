@@ -2,6 +2,7 @@ import * as satellite from 'satellite.js'
 import { WorkerAnswer, WorkerQuery } from './message-types'
 import { MsdfGeometry, MsdfGeometryBuilder } from './msdf'
 import { TEXT_FLOATS_PER_ORIGIN, TEXT_FLOATS_PER_POSITION, TEXT_FLOATS_PER_UV, TEXT_FLOATS_PER_VERTEX, TEXT_VERTICES_PER_QUAD } from './scene-constants.js'
+import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 
 function lookAnglesToCartesian (elevation: number, azimuth: number): [number, number, number] {
   const x = Math.cos(elevation) * Math.cos(azimuth)
@@ -41,6 +42,51 @@ const noradToIdMap = new Map<string, number>()
 const geometriesMap = new Map<string, MsdfGeometry>()
 const geometriesPositionsMap = new Map<string, Float32Array>()
 const geometriesUVCoordsMap = new Map<string, Float32Array>()
+
+const kmToEarthRadii = (km: number) => km / 6371
+
+// eslint-disable-next-line sonarjs/cognitive-complexity
+const isSatellitePassingTheFilters = (filter: SatelliteFilter, elements: satellite.PositionAndVelocity) => {
+  const { meanElements } = elements
+  for (const [key, { min, max, enabled }] of Object.entries(filter)) {
+    if (!enabled) continue
+
+    const apogeeInEartRadii = meanElements.am * (1 + meanElements.em) - 1
+    const perigeeInEarthRadii = meanElements.am * (1 - meanElements.em) - 1
+
+    switch (key) {
+      case 'inclination_deg':
+        if (meanElements.im < min * (Math.PI / 180) || meanElements.im > max * (Math.PI / 180)) {
+          return false
+        }
+        break
+      case 'eccentricity':
+        if (meanElements.em < min || meanElements.em > max) {
+          return false
+        }
+        break
+      case 'period_minutes':
+      {
+        const periodMinutes = 2 * Math.PI / meanElements.nm
+        if (periodMinutes < min || periodMinutes > max) {
+          return false
+        }
+        break
+      }
+      case 'apogee_km':
+        if (apogeeInEartRadii < kmToEarthRadii(min) || apogeeInEartRadii > kmToEarthRadii(max)) {
+          return false
+        }
+
+        break
+      case 'perigee_km':
+        if (perigeeInEarthRadii < kmToEarthRadii(min) || perigeeInEarthRadii > kmToEarthRadii(max)) {
+          return false
+        }
+    }
+  }
+  return true
+}
 
 self.onmessage = (e: MessageEvent<WorkerQuery>) => {
   if (e.data.type === 'init') {
@@ -84,7 +130,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       queryId: e.data.queryId
     })
   } else if (e.data.type === 'process') {
-    const { date, location, queryId } = e.data
+    const { date, location, queryId, filter } = e.data
     const gmst = satellite.gstime(date)
     const locationForLib = {
       longitude: satellite.degreesToRadians(location.longitude),
@@ -92,21 +138,31 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       height: location.altitude / 1000
     }
 
-    const positions = satRecs.map((satRec) => {
-      const positionEci = satellite.propagate(satRec, date)
-      if (typeof positionEci.position !== 'object') {
-        return {
-          cartesian: null,
-          norad: satRec.satnum
+    const positions = satRecs
+      .map((satRec) => {
+        const positionEci = satellite.propagate(satRec, date)
+        if (typeof positionEci.position !== 'object') {
+          return null
         }
-      }
-      const positionEcf = satellite.eciToEcf(positionEci.position as satellite.EciVec3<number>, gmst)
-      const lookAngles = satellite.ecfToLookAngles(locationForLib, positionEcf)
-      return {
-        norad: satRec.satnum,
-        cartesian: lookAnglesToCartesian(lookAngles.elevation, lookAngles.azimuth)
-      }
-    })
+        return {
+          positionEci: {
+            position: positionEci.position,
+            velocity: positionEci.velocity,
+            meanElements: positionEci.meanElements,
+          },
+          norad: satRec.satnum,
+        }
+      })
+      .filter((position) => !!position)
+      .filter(({ positionEci }) => isSatellitePassingTheFilters(filter, positionEci))
+      .map(({ positionEci, norad }) => {
+        const positionEcf = satellite.eciToEcf(positionEci.position as satellite.EciVec3<number>, gmst)
+        const lookAngles = satellite.ecfToLookAngles(locationForLib, positionEcf)
+        return {
+          norad,
+          cartesian: lookAnglesToCartesian(lookAngles.elevation, lookAngles.azimuth)
+        }
+      })
 
     const successful = (positions.filter((position) => position.cartesian) as { norad: string, cartesian: [number, number, number] }[])
       .filter(position => position.cartesian[1] > 0)

@@ -1,4 +1,5 @@
 import { Location } from '../common-types'
+import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 import { MsdfDefinition } from './msdf'
 
 export type BasicEvent = {
@@ -15,7 +16,8 @@ export type InitQuery = BasicEvent & {
 export type PropagateQuery = BasicEvent & {
   type: 'process',
   date: Date,
-  location: Location
+  location: Location,
+  filter: SatelliteFilter
 }
 
 export type WorkerQuery = InitQuery | PropagateQuery

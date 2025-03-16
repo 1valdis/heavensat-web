@@ -2,6 +2,7 @@ import { InitQuery, PropagateQuery, WorkerAnswer } from './message-types'
 import { Location, Satellite } from '../common-types'
 import { chunkify } from './chunkify'
 import type { MsdfDefinition } from './msdf'
+import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 
 interface StateEventMap {
   'propagate-result': CustomEvent;
@@ -93,12 +94,13 @@ class Propagator extends typedEventTarget {
     this.worker.postMessage(this.latestInitializeQuery)
   }
 
-  process (date: Date, location: Location) {
+  process (date: Date, location: Location, filter: SatelliteFilter) {
     this.latestPropagateQuery = {
       type: 'process',
       queryId: crypto.randomUUID(),
       date,
-      location
+      location,
+      filter
     }
     if (!this.busy) {
       this.worker.postMessage(this.latestPropagateQuery)
@@ -121,6 +123,21 @@ export class ConcurrentPropagator extends typedEventTarget {
         propagator,
       }
     })
+
+  constructor (satellites: Satellite[], msdfDefinition: MsdfDefinition) {
+    super()
+    const chunks = chunkify(satellites, this.workers.length)
+
+    this.workers.forEach((worker, index) => {
+      const offset = chunks.reduce((acc, current, currentIndex) => {
+        if (currentIndex >= index) {
+          return acc
+        }
+        return acc + current.length
+      }, 0)
+      worker.propagator.init(offset, chunks[index]!, msdfDefinition)
+    })
+  }
 
   #propagated: PropagationResults = {
     propagatedPositions: new Float32Array(0),
@@ -159,23 +176,9 @@ export class ConcurrentPropagator extends typedEventTarget {
     return this.workers.flatMap(worker => worker.propagator.failedNorads)
   }
 
-  init (satellites: Satellite[], msdfDefinition: MsdfDefinition) {
-    const chunks = chunkify(satellites, this.workers.length)
-
-    this.workers.forEach((worker, index) => {
-      const offset = chunks.reduce((acc, current, currentIndex) => {
-        if (currentIndex >= index) {
-          return acc
-        }
-        return acc + current.length
-      }, 0)
-      worker.propagator.init(offset, chunks[index]!, msdfDefinition)
-    })
-  }
-
-  process (date: Date, location: Location) {
+  process (date: Date, location: Location, filter: SatelliteFilter) {
     this.workers.forEach((worker) => {
-      worker.propagator.process(date, location)
+      worker.propagator.process(date, location, filter)
     })
   }
 }

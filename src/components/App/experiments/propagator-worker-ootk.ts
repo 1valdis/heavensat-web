@@ -1,4 +1,3 @@
-/* eslint-disable no-redeclare */
 import * as ootk from 'ootk'
 import * as satellite from 'satellite.js'
 import { WorkerAnswer, WorkerQuery } from '../../Scene/message-types'
@@ -12,8 +11,8 @@ function lookAnglesToCartesian (elevation: number, azimuth: number): [number, nu
   return [y, z, x]
 }
 
-function concat (arrays: Float32Array[]): Float32Array;
-function concat (arrays: Int32Array[]): Int32Array;
+function concat (arrays: Float32Array[]): Float32Array
+function concat (arrays: Int32Array[]): Int32Array
 function concat (arrays: Float32Array[] | Int32Array[]): Float32Array | Int32Array {
   const totalLength = arrays.reduce((acc, value) => acc + value.length, 0)
 
@@ -42,7 +41,7 @@ function duplicate (array: Float32Array, times: number) {
 }
 
 type ParametersExceptFirst<F> =
-   F extends (arg0: any, ...rest: infer R) => any ? R : never;
+   F extends (arg0: any, ...rest: infer R) => any ? R : never
 
 function typedPostMessage (message: WorkerAnswer, ...rest: ParametersExceptFirst<typeof postMessage>) {
   postMessage(message, ...rest)
@@ -123,7 +122,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
     })
     console.log(performance.now() - kek)
 
-    const successful = (positions.filter((position) => position.cartesian) as {norad: string, cartesian: [number, number, number]}[])
+    const successful = (positions.filter((position) => position.cartesian) as { norad: string, cartesian: [number, number, number] }[])
       .filter(position => position.cartesian[1] > 0)
     const positionsArray = concat(successful.map(position => new Float32Array(position.cartesian!)))
     const idsArray = concat(successful.map(position => new Int32Array([noradToIdMap.get(position.norad)!])))
@@ -135,7 +134,6 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
     )
     const textsPositions = concat(successful.map(satellite => geometriesPositionsMap.get(satellite.norad)!))
     const textsUVCoords = concat(successful.map(satellite => geometriesUVCoordsMap.get(satellite.norad)!))
-    // eslint-disable-next-line no-debugger
 
     typedPostMessage({
       type: 'process',
@@ -143,9 +141,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
         failedNorads: positions.filter((position) => !position.cartesian).map(position => position.norad),
         propagatedPositions: positionsArray,
         propagatedIds: idsArray,
-        textsOrigins,
-        textsPositions,
-        textsUVCoords
+        texts: textsPositions
       },
       queryId
     // idk why typescript thinks I can't transfer an ArrayBuffer??

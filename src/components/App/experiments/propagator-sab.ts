@@ -1,27 +1,10 @@
-import * as satellite from 'satellite.js'
-import { MsdfGeometry, MsdfGeometryBuilder, MsdfDefinition } from '../../Scene/msdf.js'
+import { MsdfDefinition } from '../../Scene/msdf.js'
 import { Location, Satellite } from '../../common-types.js'
 import { chunkify } from '../../Scene/chunkify.js'
 import { PropagateQuery, InitQuery, WorkerAnswer, Buffers } from './message-types-sab.js'
 import { BYTES_PER_FLOAT, getControlBytesSize, getHalfDoubleBufferBytesSize, getIdsBytesSize, getPositionsBytesSize, getTextsOriginsBytesSize, getTextsPositionsBytesSize, getTextsUVsBytesSize, getTotalBytesSize } from './sab-offsets.js'
-import { ShaderProgramsMap } from '../../Scene/Scene.js'
+import { ShaderProgramsMap } from '../../Scene/scene-drawing.js'
 import { lockSomeSide, unlock } from './lock.js'
-
-function concat (arrays: Float32Array[]): Float32Array
-function concat (arrays: Int32Array[]): Int32Array
-function concat (arrays: Float32Array[] | Int32Array[]): Float32Array | Int32Array {
-  const totalLength = arrays.reduce((acc, value) => acc + value.length, 0)
-
-  const result = arrays[0]! instanceof Float32Array ? new Float32Array(totalLength) : new Int32Array(totalLength)
-
-  let length = 0
-  for (const array of arrays) {
-    result.set(array, length)
-    length += array.length
-  }
-
-  return result
-}
 
 interface StateEventMap {
   'propagate-result': CustomEvent;
@@ -63,7 +46,7 @@ const createBufferSet = (sab: SharedArrayBuffer, baseOffset: number, counts: {
     ids: new Int32Array(sab, (currentOffset += sizes.positions), sizes.ids / BYTES_PER_FLOAT),
     textsOrigins: new Float32Array(sab, (currentOffset += sizes.ids), sizes.textsOrigins / BYTES_PER_FLOAT),
     textsPositions: new Float32Array(sab, (currentOffset += sizes.textsOrigins), sizes.textsPositions / BYTES_PER_FLOAT),
-    textsUVCoords: new Float32Array(sab, (currentOffset += sizes.textsPositions), sizes.textsUVs / BYTES_PER_FLOAT)
+    textsUVCoords: new Float32Array(sab, (currentOffset + sizes.textsPositions), sizes.textsUVs / BYTES_PER_FLOAT)
   }
 }
 
@@ -221,31 +204,21 @@ export class ConcurrentPropagatorSAB extends typedEventTarget {
       gl.bufferData(gl.ARRAY_BUFFER, this.#latestInitData.reduce((acc, initData) => acc + initData.buffers[0].positions.byteLength, 0), gl.STREAM_DRAW)
       gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satellites.buffers.ids)
       gl.bufferData(gl.ARRAY_BUFFER, this.#latestInitData.reduce((acc, initData) => acc + initData.buffers[0].ids.byteLength, 0), gl.STREAM_DRAW)
-      gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.positions)
+      gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.texts)
       gl.bufferData(gl.ARRAY_BUFFER, this.#latestInitData.reduce((acc, initData) => acc + initData.buffers[0].textsPositions.byteLength, 0), gl.STREAM_DRAW)
-      gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.origins)
-      gl.bufferData(gl.ARRAY_BUFFER, this.#latestInitData.reduce((acc, initData) => acc + initData.buffers[0].textsOrigins.byteLength, 0), gl.STREAM_DRAW)
-      gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.uvs)
-      gl.bufferData(gl.ARRAY_BUFFER, this.#latestInitData.reduce((acc, initData) => acc + initData.buffers[0].textsUVCoords.byteLength, 0), gl.STREAM_DRAW)
       this.#mustRecreateWebGLBuffers = false
     }
     this.#latestInitData!.forEach((initData, index) => {
       const positionsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].positions.byteLength, 0)
       const idsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].ids.byteLength, 0)
       const textsPositionsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].textsPositions.byteLength, 0)
-      const textsOriginsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].textsOrigins.byteLength, 0)
-      const textsUVCoordsOffset = this.#latestInitData!.slice(0, index).reduce((acc, initData) => acc + initData.buffers[0].textsUVCoords.byteLength, 0)
       const side = lockSomeSide(initData.buffers[0].control, initData.buffers[1].control)
       gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satellites.buffers.positions)
       gl.bufferSubData(gl.ARRAY_BUFFER, positionsOffset, initData.buffers[side].positions)
       gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satellites.buffers.ids)
       gl.bufferSubData(gl.ARRAY_BUFFER, idsOffset, initData.buffers[side].ids)
-      gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.positions)
+      gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.texts)
       gl.bufferSubData(gl.ARRAY_BUFFER, textsPositionsOffset, initData.buffers[side].textsPositions)
-      gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.origins)
-      gl.bufferSubData(gl.ARRAY_BUFFER, textsOriginsOffset, initData.buffers[side].textsOrigins)
-      gl.bindBuffer(gl.ARRAY_BUFFER, shaderPrograms.satelliteNames.buffers.uvs)
-      gl.bufferSubData(gl.ARRAY_BUFFER, textsUVCoordsOffset, initData.buffers[side].textsUVCoords)
       unlock(initData.buffers[side].control)
     })
   }

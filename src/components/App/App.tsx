@@ -9,6 +9,7 @@ import { createTheme, CssBaseline, ThemeProvider } from '@mui/material'
 import './App.css'
 import { DeviceTimeZone, LocationControls } from '../LocationControls/LocationControls.js'
 import { TimeControls } from '../TimeControls/TimeControls.js'
+import { defaultFilter, SatelliteFilter, SatellitesFilter } from '../SatelliteFilter/SatellitesFilter.js'
 
 const darkTheme = createTheme({
   palette: {
@@ -24,14 +25,17 @@ export const App = () => {
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0, timezone: DeviceTimeZone })
   const [selectedStarId, setSelectedStarId] = useState<number | null>(null)
   const [selectedSatelliteId, setSelectedSatelliteId] = useState<number | null>(null)
-  const [satelliteNamesVisible, setSatelliteNamesVisible] = useState(true)
+  const [satelliteFilter, setSatelliteFilter] = useState<SatelliteFilter>(defaultFilter)
+  const [satelliteNamesVisible/* , setSatelliteNamesVisible */] = useState(true)
   // const switchSatelliteNamesVisibility = useCallback(() => setSatelliteNamesVisible(current => !current), [setSatelliteNamesVisible])
 
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <div className='App'>
-        <TopMenu />
+        <TopMenu>
+          <SatellitesFilter currentFilter={satelliteFilter} setFilter={setSatelliteFilter} />
+        </TopMenu>
         <Scene
           assets={assets}
           date={timeControls.date}
@@ -41,6 +45,7 @@ export const App = () => {
           setSelectedSatelliteId={setSelectedSatelliteId}
           selectedStarId={selectedStarId}
           setSelectedStarId={setSelectedStarId}
+          satelliteFilter={satelliteFilter}
         />
         <BottomBar>
           <LocationControls setLocation={setLocation} location={location} />

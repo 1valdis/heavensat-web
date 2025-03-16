@@ -4,6 +4,7 @@ import react from 'eslint-plugin-react'
 import reactHooks from 'eslint-plugin-react-hooks'
 import sonarjs from 'eslint-plugin-sonarjs'
 import json from 'eslint-plugin-json'
+import * as reactCompiler from 'eslint-plugin-react-compiler'
 
 export default [
   {
@@ -43,5 +44,6 @@ export default [
       'sonarjs/no-nested-assignment': 0,
       'sonarjs/no-commented-code': 0
     }
-  }
+  },
+  reactCompiler.configs.recommended,
 ] satisfies Linter.Config[]
