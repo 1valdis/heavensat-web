@@ -4,6 +4,8 @@ import { chunkify } from './chunkify'
 import type { MsdfDefinition } from './msdf'
 import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 
+const WORKERS_COUNT = 3
+
 interface StateEventMap {
   'propagate-result': CustomEvent;
 }
@@ -60,8 +62,16 @@ class Propagator extends typedEventTarget {
     return this.#failedNorads
   }
 
-  constructor () {
+  constructor (offset: number, satellites: Satellite[], msdfDefinition: MsdfDefinition) {
     super()
+    this.latestInitializeQuery = {
+      type: 'init',
+      queryId: crypto.randomUUID(),
+      '3LEs': satellites.map(sat => sat['3leLines']),
+      ids: satellites.map((sat, index) => index + offset),
+      msdfDefinition
+    }
+    this.#assignedSatellites = satellites
     this.worker.onmessage = (event: MessageEvent<WorkerAnswer>) => {
       if (event.data.type === 'init' && event.data.queryId !== this.latestInitializeQuery?.queryId) {
         this.worker.postMessage(this.latestInitializeQuery)
@@ -80,17 +90,6 @@ class Propagator extends typedEventTarget {
       }
     }
     this.worker.onerror = console.log
-  }
-
-  init (offset: number, satellites: Satellite[], msdfDefinition: MsdfDefinition) {
-    this.latestInitializeQuery = {
-      type: 'init',
-      queryId: crypto.randomUUID(),
-      '3LEs': satellites.map(sat => sat['3leLines']),
-      ids: satellites.map((sat, index) => index + offset),
-      msdfDefinition
-    }
-    this.#assignedSatellites = satellites
     this.worker.postMessage(this.latestInitializeQuery)
   }
 
@@ -112,8 +111,20 @@ class Propagator extends typedEventTarget {
 export class ConcurrentPropagator extends typedEventTarget {
   private workers: Array<{
     propagator: Propagator
-  }> = Array.from({ length: 3 }, () => {
-      const propagator = new Propagator()
+  }>
+
+  constructor (satellites: Satellite[], msdfDefinition: MsdfDefinition) {
+    super()
+    const chunks = chunkify(satellites, WORKERS_COUNT)
+
+    this.workers = Array.from({ length: WORKERS_COUNT }, (item, index) => {
+      const offset = chunks.reduce((acc, current, currentIndex) => {
+        if (currentIndex >= index) {
+          return acc
+        }
+        return acc + current.length
+      }, 0)
+      const propagator = new Propagator(offset, chunks[index]!, msdfDefinition)
       propagator.addEventListener('propagate-result', () => {
         this.#requestedSinceRefresh = false
         this.#propagatedResultId++
@@ -122,20 +133,6 @@ export class ConcurrentPropagator extends typedEventTarget {
       return {
         propagator,
       }
-    })
-
-  constructor (satellites: Satellite[], msdfDefinition: MsdfDefinition) {
-    super()
-    const chunks = chunkify(satellites, this.workers.length)
-
-    this.workers.forEach((worker, index) => {
-      const offset = chunks.reduce((acc, current, currentIndex) => {
-        if (currentIndex >= index) {
-          return acc
-        }
-        return acc + current.length
-      }, 0)
-      worker.propagator.init(offset, chunks[index]!, msdfDefinition)
     })
   }
 

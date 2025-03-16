@@ -1,4 +1,4 @@
-import * as satellite from 'satellite.js'
+import * as satellite from '../../satellite.js'
 import { WorkerAnswer, WorkerQuery } from './message-types'
 import { MsdfGeometry, MsdfGeometryBuilder } from './msdf'
 import { TEXT_FLOATS_PER_ORIGIN, TEXT_FLOATS_PER_POSITION, TEXT_FLOATS_PER_UV, TEXT_FLOATS_PER_VERTEX, TEXT_VERTICES_PER_QUAD } from './scene-constants.js'
