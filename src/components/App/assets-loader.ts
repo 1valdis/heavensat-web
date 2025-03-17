@@ -3,6 +3,7 @@ import msdfImage from '../assets/msdf.png'
 import satelliteCatalog from '../assets/3le.txt?url'
 import { HIPStarOriginal } from '../common-types.js'
 import type MsdfDefinition from '../assets/msdf-definition.json'
+import { use } from 'react'
 
 export type Assets = {
   textures: {
@@ -49,3 +50,6 @@ export async function fetchAssets (): Promise<Assets> {
     msdfDefinition: msdfDefinition.default
   }
 }
+
+const assetsPromise = fetchAssets()
+export const useAssets = () => use(assetsPromise)
