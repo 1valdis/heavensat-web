@@ -21,8 +21,8 @@ const assetsPromise = fetchAssets()
 
 export const App = () => {
   const assets = use(assetsPromise)
-  const timeControls = useTimeControls()
   const [location, setLocation] = useState<Location>({ latitude: 0, longitude: 0, altitude: 0, timezone: DeviceTimeZone })
+  const timeControls = useTimeControls(location.timezone)
   const [selectedStarId, setSelectedStarId] = useState<number | null>(null)
   const [selectedSatelliteId, setSelectedSatelliteId] = useState<number | null>(null)
   const [satelliteFilter, setSatelliteFilter] = useState<SatelliteFilter>(defaultFilter)
@@ -49,7 +49,7 @@ export const App = () => {
         />
         <BottomBar>
           <LocationControls setLocation={setLocation} location={location} />
-          <TimeControls {...timeControls} zone='Europe/Kiev' />
+          <TimeControls {...timeControls} zone={location.timezone} hotkeyStep={{ seconds: 5 }} />
         </BottomBar>
       </div>
     </ThemeProvider>

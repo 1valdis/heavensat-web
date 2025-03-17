@@ -1,68 +1,123 @@
 import { FC, useCallback } from 'react'
 import { Button, FormControl, IconButton, Input, InputAdornment, InputLabel, Stack } from '@mui/material'
 import { Add, Pause, PlayArrow, Remove } from '@mui/icons-material'
-import { DateTime, DurationLikeObject } from 'luxon'
-
-const makeIncrDectHandler = (duration: DurationLikeObject, zone: string) => {
-  return (date: Date, setDate: (date: Date) => void) => DateTime.fromJSDate(date, { zone }).plus(duration).toJSDate()
-}
+import { DateTime, Duration, DurationLikeObject } from 'luxon'
+import { useHotkey } from '../use-hotkey.js'
+import { DispatchTimeAction, TimeActions } from '../App/use-time-controls.js'
 
 export const TimeControls: FC<{
   start: () => void
   stop: () => void
   isPlaying: boolean
   date: Date,
-  setDate: (date: Date) => void
+  dispatch: DispatchTimeAction
+  hotkeyStep: DurationLikeObject
   zone: string
 }> = ({
   start,
   stop,
   isPlaying,
   date,
-  setDate,
+  dispatch,
+  hotkeyStep,
   zone
 }) => {
   const dateTime = DateTime.fromJSDate(date, { zone })
 
   const incrDay = useCallback(() => {
-    setDate(makeIncrDectHandler({ days: 1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { days: 1 }
+    })
+  }, [dispatch])
 
   const decrDay = useCallback(() => {
-    setDate(makeIncrDectHandler({ days: -1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { days: -1 }
+    })
+  }, [dispatch])
 
   const incrHour = useCallback(() => {
-    setDate(makeIncrDectHandler({ hours: 1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { hours: 1 }
+    })
+  }, [dispatch])
 
   const decrHour = useCallback(() => {
-    setDate(makeIncrDectHandler({ hours: -1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { hours: -1 }
+    })
+  }, [dispatch])
 
   const incrMinute = useCallback(() => {
-    setDate(makeIncrDectHandler({ minutes: 1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { minutes: 1 }
+    })
+  }, [dispatch])
 
   const decrMinute = useCallback(() => {
-    setDate(makeIncrDectHandler({ minutes: -1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { minutes: -1 }
+    })
+  }, [dispatch])
 
   const incrSecond = useCallback(() => {
-    setDate(makeIncrDectHandler({ seconds: 1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { seconds: 1 }
+    })
+  }, [dispatch])
 
   const decrSecond = useCallback(() => {
-    setDate(makeIncrDectHandler({ seconds: -1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { seconds: -1 }
+    })
+  }, [dispatch])
 
   const incrMillisecond = useCallback(() => {
-    setDate(makeIncrDectHandler({ milliseconds: 1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { milliseconds: 1 }
+    })
+  }, [dispatch])
 
   const decrMillisecond = useCallback(() => {
-    setDate(makeIncrDectHandler({ milliseconds: -1 }, zone)(date, setDate))
-  }, [date, setDate, zone])
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: { milliseconds: -1 }
+    })
+  }, [dispatch])
+
+  const setDate = useCallback((newDate: Date) => {
+    dispatch({
+      type: TimeActions.SET,
+      date: newDate
+    })
+  }, [dispatch])
+
+  const incrFromHotkey = useCallback(() => {
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: hotkeyStep,
+    })
+  }, [dispatch, hotkeyStep])
+
+  const decrFromHotkey = useCallback(() => {
+    const negatedHotkeyStep = Duration.fromDurationLike(hotkeyStep).negate().toObject()
+    dispatch({
+      type: TimeActions.MODIFY_BY_DURATION,
+      duration: negatedHotkeyStep,
+    })
+  }, [dispatch, hotkeyStep])
+
+  useHotkey('ArrowRight', incrFromHotkey)
+  useHotkey('ArrowLeft', decrFromHotkey)
 
   return (
     <Stack direction='row' useFlexGap spacing={1} justifyItems='center' alignContent='center'>
