@@ -1,6 +1,7 @@
 import { Location } from '../common-types'
 import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 import { MsdfDefinition } from './msdf'
+import { PropagationResults } from './propagator.js'
 
 export type BasicEvent = {
   queryId: string
@@ -31,10 +32,7 @@ export type PropagateAnswer = BasicEvent & {
   type: 'process',
   result: {
     failedNorads: string[],
-    propagatedPositions: Float32Array
-    propagatedIds: Int32Array
-    texts: Float32Array
-  }
+  } & PropagationResults
 }
 
 export type WorkerAnswer = InitAnswer | PropagateAnswer

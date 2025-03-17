@@ -25,9 +25,9 @@ interface StateEventTarget extends EventTarget {
 
 const typedEventTarget = EventTarget as { new(): StateEventTarget; prototype: StateEventTarget }
 
-type PropagationResults = {
+export type PropagationResults = {
   propagatedPositions: Float32Array,
-  propagatedIds: Int32Array,
+  propagatedIdsAndShadow: Int32Array,
   texts: Float32Array
 }
 export type PropagationResultsWithChangedFlag = PropagationResults & { changedSinceLastRequest: boolean }
@@ -44,7 +44,7 @@ class Propagator extends typedEventTarget {
 
   #propagated: PropagationResults = {
     propagatedPositions: new Float32Array(0),
-    propagatedIds: new Int32Array(0),
+    propagatedIdsAndShadow: new Int32Array(0),
     texts: new Float32Array(0)
   }
 
@@ -138,7 +138,7 @@ export class ConcurrentPropagator extends typedEventTarget {
 
   #propagated: PropagationResults = {
     propagatedPositions: new Float32Array(0),
-    propagatedIds: new Int32Array(0),
+    propagatedIdsAndShadow: new Int32Array(0),
     texts: new Float32Array(0)
   }
 
@@ -150,9 +150,9 @@ export class ConcurrentPropagator extends typedEventTarget {
 
   public get propagated (): PropagationResultsWithChangedFlag {
     if (this.#requestedSinceRefresh) { return { ...this.#propagated, changedSinceLastRequest: false } }
-    const keysToConcatenate: (keyof PropagationResults)[] = ['propagatedPositions', 'propagatedIds', 'texts']
+    const keysToConcatenate: (keyof PropagationResults)[] = ['propagatedPositions', 'propagatedIdsAndShadow', 'texts']
     const resultArrays = keysToConcatenate.map(key => {
-      const resultArray = new (key === 'propagatedIds' ? Int32Array : Float32Array)(this.workers.reduce((acc, current) => acc + current.propagator.propagated[key].length, 0))
+      const resultArray = new (key === 'propagatedIdsAndShadow' ? Int32Array : Float32Array)(this.workers.reduce((acc, current) => acc + current.propagator.propagated[key].length, 0))
       let currentOffset = 0
       this.workers.forEach(worker => {
         resultArray.set(worker.propagator.propagated[key], currentOffset)
@@ -162,7 +162,7 @@ export class ConcurrentPropagator extends typedEventTarget {
     })
     this.#propagated = {
       propagatedPositions: resultArrays[0]! as Float32Array,
-      propagatedIds: resultArrays[1]! as Int32Array,
+      propagatedIdsAndShadow: resultArrays[1]! as Int32Array,
       texts: resultArrays[2]! as Float32Array
     }
     this.#requestedSinceRefresh = true

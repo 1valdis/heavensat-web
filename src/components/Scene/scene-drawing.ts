@@ -7,7 +7,7 @@ import * as satellite from '../../satellite.js'
 import { Viewport, Panning, Location, HIPStar } from '../common-types.js'
 import { Assets } from '../App/assets-loader.js'
 import { PropagationResultsWithChangedFlag } from './propagator.js'
-import { SATELLITE_FLOATS_PER_VERTEX, TEXT_FLOATS_PER_VERTEX } from './scene-constants.js'
+import { SATELLITE_FLOATS_PER_POSITION, SATELLITE_INTS_PER_ID, SATELLITE_INTS_PER_SHADOW, SATELLITE_INTS_PER_VERTEX, TEXT_FLOATS_PER_ORIGIN, TEXT_FLOATS_PER_POSITION, TEXT_FLOATS_PER_UV, TEXT_FLOATS_PER_VERTEX } from './scene-constants.js'
 
 export type ShaderProgramsMap = {
   sky: {
@@ -44,7 +44,7 @@ export type ShaderProgramsMap = {
     texture: WebGLTexture,
     buffers: {
       positions: WebGLBuffer,
-      ids: WebGLBuffer
+      idsAndShadow: WebGLBuffer,
     }
   },
   satelliteNames: {
@@ -121,8 +121,8 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
   gl.bindBuffer(gl.ARRAY_BUFFER, constellationPositionsBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(constellationLines), gl.STATIC_DRAW)
 
-  const satellitePositionsBuffer = gl.createBuffer()!
-  const satelliteIdsBuffer = gl.createBuffer()!
+  const satellitesPositionsBuffer = gl.createBuffer()!
+  const satellitesIdsAndShadowBuffer = gl.createBuffer()!
   const satelliteNamesBuffer = gl.createBuffer()!
 
   const groundPositionBuffer = gl.createBuffer()!
@@ -177,8 +177,8 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
       program: initShaderProgram(gl, shaders.satelliteVertex, shaders.satelliteFragment),
       texture: satelliteTexture,
       buffers: {
-        positions: satellitePositionsBuffer,
-        ids: satelliteIdsBuffer
+        positions: satellitesPositionsBuffer,
+        idsAndShadow: satellitesIdsAndShadowBuffer
       }
     },
     satelliteNames: {
@@ -308,10 +308,14 @@ const drawSatellites = (gl: WebGL2RenderingContext, { program, texture, buffers 
   gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0)
   gl.enableVertexAttribArray(positionLocation)
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.ids)
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.idsAndShadow)
   const instanceLocation = gl.getAttribLocation(program, 'a_instanceId')
-  gl.vertexAttribIPointer(instanceLocation, 1, gl.INT, 0, 0)
+  const shadowLocation = gl.getAttribLocation(program, 'a_shadow')
+
+  gl.vertexAttribIPointer(instanceLocation, SATELLITE_INTS_PER_ID, gl.INT, SATELLITE_INTS_PER_VERTEX * Int32Array.BYTES_PER_ELEMENT, 0)
   gl.enableVertexAttribArray(instanceLocation)
+  gl.vertexAttribIPointer(shadowLocation, SATELLITE_INTS_PER_SHADOW, gl.INT, SATELLITE_INTS_PER_VERTEX * Int32Array.BYTES_PER_ELEMENT, SATELLITE_INTS_PER_ID * Int32Array.BYTES_PER_ELEMENT)
+  gl.enableVertexAttribArray(shadowLocation)
 
   const projectionLocation = gl.getUniformLocation(program, 'u_projectionMatrix')
   gl.uniformMatrix4fv(
@@ -325,7 +329,6 @@ const drawSatellites = (gl: WebGL2RenderingContext, { program, texture, buffers 
     false,
     modelViewMatrix)
 
-  gl.uniform4fv(gl.getUniformLocation(program, 'u_color'), new Float32Array([0, 1, 0, 1]))
   gl.uniform1f(gl.getUniformLocation(program, 'u_size'), 16 * devicePixelRatio)
   gl.drawArrays(gl.POINTS, 0, primitives)
 }
@@ -432,11 +435,11 @@ const drawNames = (gl: WebGL2RenderingContext, { program, texture, buffers }: Sh
 
   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texts)
 
-  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 7 * 4, 0)
+  gl.vertexAttribPointer(positionLocation, TEXT_FLOATS_PER_POSITION, gl.FLOAT, false, TEXT_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT, 0)
   gl.enableVertexAttribArray(positionLocation)
-  gl.vertexAttribPointer(originCoordLocation, 3, gl.FLOAT, false, 7 * 4, 2 * 4)
+  gl.vertexAttribPointer(originCoordLocation, TEXT_FLOATS_PER_ORIGIN, gl.FLOAT, false, TEXT_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT, TEXT_FLOATS_PER_POSITION * Float32Array.BYTES_PER_ELEMENT)
   gl.enableVertexAttribArray(originCoordLocation)
-  gl.vertexAttribPointer(uvCoordLocation, 2, gl.FLOAT, false, 7 * 4, 5 * 4)
+  gl.vertexAttribPointer(uvCoordLocation, TEXT_FLOATS_PER_UV, gl.FLOAT, false, TEXT_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT, (TEXT_FLOATS_PER_POSITION + TEXT_FLOATS_PER_ORIGIN) * Float32Array.BYTES_PER_ELEMENT)
   gl.enableVertexAttribArray(uvCoordLocation)
 
   gl.drawArrays(gl.TRIANGLES, 0, primitives)
@@ -573,20 +576,20 @@ export const drawScene = ({ gl, shaderPrograms, viewport, fov, location, panning
 }
 
 const updatePropagatedBuffers = (gl: WebGL2RenderingContext, { satellites, satelliteNames }: ShaderProgramsMap, getPropagationResults: () => PropagationResultsWithChangedFlag) => {
-  const { propagatedIds, propagatedPositions, texts, changedSinceLastRequest } = getPropagationResults()
+  const { propagatedIdsAndShadow, propagatedPositions, texts, changedSinceLastRequest } = getPropagationResults()
   if (changedSinceLastRequest) {
     gl.bindBuffer(gl.ARRAY_BUFFER, satellites.buffers.positions)
     gl.bufferData(gl.ARRAY_BUFFER, propagatedPositions, gl.STREAM_DRAW)
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, satellites.buffers.ids)
-    gl.bufferData(gl.ARRAY_BUFFER, propagatedIds, gl.STREAM_DRAW)
+    gl.bindBuffer(gl.ARRAY_BUFFER, satellites.buffers.idsAndShadow)
+    gl.bufferData(gl.ARRAY_BUFFER, propagatedIdsAndShadow, gl.STREAM_DRAW)
 
     gl.bindBuffer(gl.ARRAY_BUFFER, satelliteNames.buffers.texts)
     gl.bufferData(gl.ARRAY_BUFFER, texts, gl.STREAM_DRAW)
   }
 
   return {
-    satellitesPrimitivesCount: propagatedPositions.length / SATELLITE_FLOATS_PER_VERTEX,
+    satellitesPrimitivesCount: propagatedPositions.length / SATELLITE_FLOATS_PER_POSITION,
     satelliteNamesPrimitivesCount: texts.length / TEXT_FLOATS_PER_VERTEX
   }
 }

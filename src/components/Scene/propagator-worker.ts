@@ -3,6 +3,8 @@ import { WorkerAnswer, WorkerQuery } from './message-types'
 import { MsdfGeometry, MsdfGeometryBuilder } from './msdf'
 import { TEXT_FLOATS_PER_ORIGIN, TEXT_FLOATS_PER_POSITION, TEXT_FLOATS_PER_UV, TEXT_FLOATS_PER_VERTEX, TEXT_VERTICES_PER_QUAD } from './scene-constants.js'
 import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
+import { Body, GeoVector, KM_PER_AU } from 'astronomy-engine'
+import { vec3 } from 'gl-matrix'
 
 function lookAnglesToCartesian (elevation: number, azimuth: number): [number, number, number] {
   const x = Math.cos(elevation) * Math.cos(azimuth)
@@ -43,7 +45,9 @@ const geometriesMap = new Map<string, MsdfGeometry>()
 const geometriesPositionsMap = new Map<string, Float32Array>()
 const geometriesUVCoordsMap = new Map<string, Float32Array>()
 
-const kmToEarthRadii = (km: number) => km / 6371
+const EARTH_RADIUS = 6371.135
+const SUN_RADIUS = 695700
+const kmToEarthRadii = (km: number) => km / EARTH_RADIUS
 
 // eslint-disable-next-line sonarjs/cognitive-complexity
 const isSatellitePassingTheFilters = (filter: SatelliteFilter, elements: satellite.PositionAndVelocity) => {
@@ -86,6 +90,34 @@ const isSatellitePassingTheFilters = (filter: SatelliteFilter, elements: satelli
     }
   }
   return true
+}
+
+function isInShadowForDate (date: Date) {
+  const sunVector = GeoVector(Body.Sun, date, false)
+  const sunECIinAU = vec3.fromValues(sunVector.x, sunVector.y, sunVector.z)
+  const sunECIinKM = vec3.clone(sunECIinAU)
+  vec3.scale(sunECIinKM, sunECIinAU, KM_PER_AU)
+  const antisolar = vec3.create()
+  vec3.negate(antisolar, sunECIinKM)
+  vec3.normalize(antisolar, antisolar)
+  return (positionEci: satellite.EciVec3<satellite.Kilometer>) => {
+    const positionECIVec = vec3.fromValues(positionEci.x, positionEci.y, positionEci.z)
+    const isNightSide = vec3.dot(positionECIVec, antisolar) > 0
+    if (!isNightSide) {
+      return 'out'
+    }
+    const satelliteAngularRadiusOfEarth = Math.asin(EARTH_RADIUS / vec3.length(positionECIVec))
+    const angularRadiusOfSun = Math.asin(SUN_RADIUS / vec3.length(sunECIinKM))
+    const angularSeparationBetweenSatelliteAndAntisolar = Math.acos(vec3.dot(positionECIVec, antisolar) / vec3.length(positionECIVec))
+    if (angularSeparationBetweenSatelliteAndAntisolar < satelliteAngularRadiusOfEarth - angularRadiusOfSun) {
+      return 'umbra'
+    }
+    if (satelliteAngularRadiusOfEarth - angularRadiusOfSun < angularSeparationBetweenSatelliteAndAntisolar &&
+      angularSeparationBetweenSatelliteAndAntisolar < satelliteAngularRadiusOfEarth + angularRadiusOfSun) {
+      return 'penumbra'
+    }
+    return 'out'
+  }
 }
 
 self.onmessage = (e: MessageEvent<WorkerQuery>) => {
@@ -137,6 +169,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       latitude: satellite.degreesToRadians(location.latitude),
       height: location.altitude / 1000
     }
+    const isInShadow = isInShadowForDate(date)
 
     const positions = satRecs
       .map((satRec) => {
@@ -156,18 +189,19 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       .filter((position) => !!position)
       .filter(({ positionEci }) => isSatellitePassingTheFilters(filter, positionEci))
       .map(({ positionEci, norad }) => {
-        const positionEcf = satellite.eciToEcf(positionEci.position as satellite.EciVec3<number>, gmst)
+        const positionEcf = satellite.eciToEcf(positionEci.position, gmst)
         const lookAngles = satellite.ecfToLookAngles(locationForLib, positionEcf)
         return {
           norad,
-          cartesian: lookAnglesToCartesian(lookAngles.elevation, lookAngles.azimuth)
+          cartesian: lookAnglesToCartesian(lookAngles.elevation, lookAngles.azimuth),
+          shadow: isInShadow(positionEci.position) === 'umbra' ? 1 : 0,
         }
       })
 
-    const successful = (positions.filter((position) => position.cartesian) as { norad: string, cartesian: [number, number, number] }[])
+    const successful = (positions.filter((position) => position.cartesian) as { norad: string, cartesian: [number, number, number], shadow: number }[])
       .filter(position => position.cartesian[1] > 0)
     const positionsArray = concat(successful.map(position => new Float32Array(position.cartesian!)))
-    const idsArray = concat(successful.map(position => new Int32Array([noradToIdMap.get(position.norad)!])))
+    const interleavedIdsAndShadowsArray = concat(successful.map(position => new Int32Array([noradToIdMap.get(position.norad)!, position.shadow])))
 
     const totalSymbols = successful.reduce((acc, sat) => acc + geometriesMap.get(sat.norad)!.chars.length, 0)
     const length = TEXT_FLOATS_PER_VERTEX * TEXT_VERTICES_PER_QUAD * totalSymbols
@@ -202,7 +236,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       result: {
         failedNorads: positions.filter((position) => !position.cartesian).map(position => position.norad),
         propagatedPositions: positionsArray,
-        propagatedIds: idsArray,
+        propagatedIdsAndShadow: interleavedIdsAndShadowsArray,
         texts: interleavedTexts,
       },
       queryId
