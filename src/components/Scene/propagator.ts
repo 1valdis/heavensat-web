@@ -1,5 +1,5 @@
 import { InitQuery, PropagateQuery, WorkerAnswer } from './message-types'
-import { Location, Satellite } from '../common-types'
+import { Location, Satellite } from '../../common/types'
 import { chunkify } from './chunkify'
 import type { MsdfDefinition } from './msdf'
 import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'

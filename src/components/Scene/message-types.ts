@@ -1,4 +1,4 @@
-import { Location } from '../common-types'
+import { Location } from '../../common/types'
 import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 import { MsdfDefinition } from './msdf'
 import { PropagationResults } from './propagator.js'

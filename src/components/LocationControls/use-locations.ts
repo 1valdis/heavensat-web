@@ -1,5 +1,5 @@
 import { useReducer } from 'react'
-import { Location } from '../common-types.js'
+import { Location } from '../../common/types.js'
 
 export const DeviceLocation = Symbol('DEVICE')
 export const ZeroLocation = Symbol('ZERO')

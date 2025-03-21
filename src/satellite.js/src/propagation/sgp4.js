@@ -227,7 +227,11 @@ export default function sgp4(satrec, tsince) {
     // printf("// error nm %f\n", nm);
     satrec.error = 2;
     // sgp4fix add return
-    return [false, false];
+    return {
+      position: false,
+      velocity: false,
+      meanElements: false,
+    };
   }
 
   const am = ((xke / nm) ** x2o3) * tempa * tempa;
@@ -240,7 +244,11 @@ export default function sgp4(satrec, tsince) {
     // printf("// error em %f\n", em);
     satrec.error = 1;
     // sgp4fix to return if there is an error in eccentricity
-    return [false, false];
+    return {
+      position: false,
+      velocity: false,
+      meanElements: false,
+    };
   }
 
   //  sgp4fix fix tolerance to avoid a divide by zero
@@ -309,7 +317,11 @@ export default function sgp4(satrec, tsince) {
       //  printf("// error ep %f\n", ep);
       satrec.error = 3;
       //  sgp4fix add return
-      return [false, false];
+      return {
+        position: false,
+        velocity: false,
+        meanElements: false,
+      };
     }
   }
 
@@ -365,7 +377,11 @@ export default function sgp4(satrec, tsince) {
     //  printf("// error pl %f\n", pl);
     satrec.error = 4;
     //  sgp4fix add return
-    return [false, false];
+    return {
+      position: false,
+      velocity: false,
+      meanElements: false,
+    };
   }
 
   const rl = am * (1.0 - ecose);
@@ -400,7 +416,7 @@ export default function sgp4(satrec, tsince) {
     return {
       position: false,
       velocity: false,
-      meanElements,
+      meanElements: false,
     };
   }
 

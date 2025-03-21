@@ -73,16 +73,10 @@ export default function twoline2satrec(longstr1, longstr2) {
   satrec.epochdays = parseFloat(longstr1.substring(20, 32));
   satrec.ndot = parseFloat(longstr1.substring(33, 43));
   satrec.nddot = parseFloat(
-    `.${parseInt(longstr1.substring(44, 50), 10)}E${longstr1.substring(
-      50,
-      52,
-    )}`,
+    `${longstr1.substring(44, 45)}.${longstr1.substring(45, 50)}E${longstr1.substring(50, 52)}`,
   );
   satrec.bstar = parseFloat(
-    `${longstr1.substring(53, 54)}.${parseInt(
-      longstr1.substring(54, 59),
-      10,
-    )}E${longstr1.substring(59, 61)}`,
+    `${longstr1.substring(53, 54)}.${longstr1.substring(54, 59)}E${longstr1.substring(59, 61)}`,
   );
 
   // satrec.satnum = longstr2.substring(2, 7);

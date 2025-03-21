@@ -1,5 +1,5 @@
 import { FC, memo, useCallback, useEffect, useState } from 'react'
-import { Location } from '../common-types.js'
+import { Location } from '../../common/types.js'
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, List, ListItemButton, ListItemText, Menu, MenuItem, Select, Stack, TextField, Tooltip, Typography } from '@mui/material'
 import { AddLocationAltOutlined, DeleteForeverOutlined, MyLocation } from '@mui/icons-material'
 import { DeviceLocation, useLocations, ZeroLocation } from './use-locations.js'

@@ -1,13 +1,15 @@
 import satelliteImage from '../assets/sat.png'
+import selectedSatelliteImage from '../assets/satsel.png'
 import msdfImage from '../assets/msdf.png'
 import satelliteCatalog from '../assets/3le.txt?url'
-import { HIPStarOriginal } from '../common-types.js'
+import { HIPStarOriginal } from '../../common/types.js'
 import type MsdfDefinition from '../assets/msdf-definition.json'
 import { use } from 'react'
 
 export type Assets = {
   textures: {
     satellite: HTMLImageElement
+    selectedSatellite: HTMLImageElement
     text: HTMLImageElement
   },
   catalogs: {
@@ -28,8 +30,9 @@ function loadImage (url: string): Promise<HTMLImageElement> {
 }
 
 export async function fetchAssets (): Promise<Assets> {
-  const [satelliteLoaded, msdfLoaded, starCatalog, constellationLineship, satelliteCatalogLoaded, msdfDefinition] = await Promise.all([
+  const [satelliteLoaded, selectedSatelliteLoaded, msdfLoaded, starCatalog, constellationLineship, satelliteCatalogLoaded, msdfDefinition] = await Promise.all([
     loadImage(satelliteImage),
+    loadImage(selectedSatelliteImage),
     loadImage(msdfImage),
     import('../assets/hipparcos_8_concise.json'),
     import('../assets/constellations.json'),
@@ -40,6 +43,7 @@ export async function fetchAssets (): Promise<Assets> {
   return {
     textures: {
       satellite: satelliteLoaded,
+      selectedSatellite: selectedSatelliteLoaded,
       text: msdfLoaded
     },
     catalogs: {

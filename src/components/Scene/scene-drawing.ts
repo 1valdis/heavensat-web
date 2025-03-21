@@ -3,11 +3,12 @@ import { Body, Equator, Horizon, Observer } from 'astronomy-engine'
 import { bvToRgb, decimalYear, degreesToRad, lookAnglesToCartesian } from './celestial.js'
 import { initShaderProgram } from './webgl.js'
 import * as shaders from './shaders/index.js'
-import * as satellite from '../../satellite.js'
-import { Viewport, Panning, Location, HIPStar } from '../common-types.js'
+import { Viewport, Panning, Location, HIPStar } from '../../common/types.js'
 import { Assets } from '../App/assets-loader.js'
 import { PropagationResultsWithChangedFlag } from './propagator.js'
 import { SATELLITE_FLOATS_PER_POSITION, SATELLITE_INTS_PER_ID, SATELLITE_INTS_PER_SHADOW, SATELLITE_INTS_PER_VERTEX, TEXT_FLOATS_PER_ORIGIN, TEXT_FLOATS_PER_POSITION, TEXT_FLOATS_PER_UV, TEXT_FLOATS_PER_VERTEX } from './scene-constants.js'
+import { gstime } from '../../satellite.js/src/index.js'
+import { SatRec } from '../../satellite.js/types/index.js'
 
 export type ShaderProgramsMap = {
   sky: {
@@ -47,6 +48,13 @@ export type ShaderProgramsMap = {
       idsAndShadow: WebGLBuffer,
     }
   },
+  selectedSatellite: {
+    program: WebGLProgram,
+    texture: WebGLTexture,
+    buffers: {
+      position: WebGLBuffer,
+    }
+  }
   satelliteNames: {
     program: WebGLProgram,
     texture: WebGLTexture,
@@ -143,6 +151,15 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
     1, -1
   ]), gl.STATIC_DRAW)
 
+  const selectedSatelliteTexture = gl.createTexture()!
+  gl.activeTexture(gl.TEXTURE0)
+  gl.bindTexture(gl.TEXTURE_2D, selectedSatelliteTexture)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, assets.textures.selectedSatellite.width, assets.textures.selectedSatellite.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, assets.textures.selectedSatellite)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+
+  const selectedSatellitePositionBuffer = gl.createBuffer()!
+
   return {
     sky: {
       program: initShaderProgram(gl, shaders.skyVertex, shaders.skyFragment),
@@ -179,6 +196,13 @@ export const setupShaderPrograms = (gl: WebGL2RenderingContext, assets: Assets):
       buffers: {
         positions: satellitesPositionsBuffer,
         idsAndShadow: satellitesIdsAndShadowBuffer
+      }
+    },
+    selectedSatellite: {
+      program: initShaderProgram(gl, shaders.selectedSatelliteVertex, shaders.selectedSatelliteFragment),
+      texture: selectedSatelliteTexture,
+      buffers: {
+        position: selectedSatellitePositionBuffer
       }
     },
     satelliteNames: {
@@ -518,7 +542,7 @@ export const createMatrices = ({ viewport, fov, location, panning, date }: {
   const latitudeRadians = location.latitude * (Math.PI / 180)
   const longitudeRadians = location.longitude * (Math.PI / 180)
   const tiltMatrix = mat4.create()
-  const lstRadians = satellite.gstime(date) + longitudeRadians
+  const lstRadians = gstime(date) + longitudeRadians
   mat4.rotateX(tiltMatrix, tiltMatrix, -latitudeRadians)
   mat4.rotateZ(tiltMatrix, tiltMatrix, -lstRadians + Math.PI / 2)
 

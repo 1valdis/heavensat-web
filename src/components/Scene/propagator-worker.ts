@@ -1,10 +1,12 @@
-import * as satellite from '../../satellite.js'
+import * as satellite from '../../satellite.js/src/index.js'
 import { WorkerAnswer, WorkerQuery } from './message-types'
 import { MsdfGeometry, MsdfGeometryBuilder } from './msdf'
 import { TEXT_FLOATS_PER_ORIGIN, TEXT_FLOATS_PER_POSITION, TEXT_FLOATS_PER_UV, TEXT_FLOATS_PER_VERTEX, TEXT_VERTICES_PER_QUAD } from './scene-constants.js'
 import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 import { Body, GeoVector, KM_PER_AU } from 'astronomy-engine'
 import { vec3 } from 'gl-matrix'
+import { getApogee, getPerigee, getPeriodMinutes } from '../../common/satellite-calculations.js'
+import { EciVec3, Kilometer, LookAngles, PositionAndVelocity, SatRec } from '../../satellite.js/types/index.js'
 
 function lookAnglesToCartesian (elevation: number, azimuth: number): [number, number, number] {
   const x = Math.cos(elevation) * Math.cos(azimuth)
@@ -37,7 +39,7 @@ function typedPostMessage (message: WorkerAnswer, ...rest: ParametersExceptFirst
   postMessage(message, ...rest)
 }
 
-let satRecs: satellite.SatRec[] = []
+let satRecs: SatRec[] = []
 
 const noradToIdMap = new Map<string, number>()
 
@@ -47,16 +49,12 @@ const geometriesUVCoordsMap = new Map<string, Float32Array>()
 
 const EARTH_RADIUS = 6371.135
 const SUN_RADIUS = 695700
-const kmToEarthRadii = (km: number) => km / EARTH_RADIUS
 
 // eslint-disable-next-line sonarjs/cognitive-complexity
-const isSatellitePassingTheFilters = (filter: SatelliteFilter, elements: satellite.PositionAndVelocity) => {
+const isSatellitePassingTheFilters = (filter: SatelliteFilter, elements: PositionAndVelocity) => {
   const { meanElements } = elements
   for (const [key, { min, max, enabled }] of Object.entries(filter)) {
     if (!enabled) continue
-
-    const apogeeInEartRadii = meanElements.am * (1 + meanElements.em) - 1
-    const perigeeInEarthRadii = meanElements.am * (1 - meanElements.em) - 1
 
     switch (key) {
       case 'inclination_deg':
@@ -71,22 +69,27 @@ const isSatellitePassingTheFilters = (filter: SatelliteFilter, elements: satelli
         break
       case 'period_minutes':
       {
-        const periodMinutes = 2 * Math.PI / meanElements.nm
+        const periodMinutes = getPeriodMinutes(meanElements)
         if (periodMinutes < min || periodMinutes > max) {
           return false
         }
         break
       }
       case 'apogee_km':
-        if (apogeeInEartRadii < kmToEarthRadii(min) || apogeeInEartRadii > kmToEarthRadii(max)) {
+      {
+        const apogee = getApogee(meanElements)
+        if (apogee < min || apogee > max) {
           return false
         }
-
         break
+      }
       case 'perigee_km':
-        if (perigeeInEarthRadii < kmToEarthRadii(min) || perigeeInEarthRadii > kmToEarthRadii(max)) {
+      {
+        const perigee = getPerigee(meanElements)
+        if (perigee < min || perigee > max) {
           return false
         }
+      }
     }
   }
   return true
@@ -100,7 +103,7 @@ function isInShadowForDate (date: Date) {
   const antisolar = vec3.create()
   vec3.negate(antisolar, sunECIinKM)
   vec3.normalize(antisolar, antisolar)
-  return (positionEci: satellite.EciVec3<satellite.Kilometer>) => {
+  return (positionEci: EciVec3<Kilometer>) => {
     const positionECIVec = vec3.fromValues(positionEci.x, positionEci.y, positionEci.z)
     const isNightSide = vec3.dot(positionECIVec, antisolar) > 0
     if (!isNightSide) {
@@ -190,7 +193,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
       .filter(({ positionEci }) => isSatellitePassingTheFilters(filter, positionEci))
       .map(({ positionEci, norad }) => {
         const positionEcf = satellite.eciToEcf(positionEci.position, gmst)
-        const lookAngles = satellite.ecfToLookAngles(locationForLib, positionEcf)
+        const lookAngles = satellite.ecfToLookAngles(locationForLib, positionEcf) as LookAngles
         return {
           norad,
           cartesian: lookAnglesToCartesian(lookAngles.elevation, lookAngles.azimuth),

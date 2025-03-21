@@ -1,0 +1,13 @@
+.satellite-details {
+  display: grid;
+  grid-template-areas:
+    "general general"
+    "coordinates elements"
+    "tle tle";
+  grid-template-columns: auto auto auto;
+  grid-template-rows: auto auto auto;
+}
+
+section {
+  padding: 1ch;
+}

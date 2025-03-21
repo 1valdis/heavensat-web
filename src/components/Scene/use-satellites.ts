@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Assets } from '../App/assets-loader'
-import { Satellite } from '../common-types.js'
+import { Satellite } from '../../common/types.js'
 
 const catalogLinesToSatellites = (catalogLines: string[]) => {
   const satellites: Satellite[] = []
