@@ -53,6 +53,10 @@ const SUN_RADIUS = 695700
 // eslint-disable-next-line sonarjs/cognitive-complexity
 const isSatellitePassingTheFilters = (filter: SatelliteFilter, elements: PositionAndVelocity) => {
   const { meanElements } = elements
+  // decayed satellites: if period is more than 100 days, propagation is probably borked
+  if (getPeriodMinutes(meanElements) > 60 * 24 * 100) {
+    return false
+  }
   for (const [key, { min, max, enabled }] of Object.entries(filter)) {
     if (!enabled) continue
 
