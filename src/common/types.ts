@@ -1,3 +1,5 @@
+import { OMMJsonObject } from 'satellite.js'
+
 export type Viewport = { x: number, y: number }
 export type Panning = { x: number, y: number }
 // lat, lon in degrees, altitude in m asl
@@ -5,7 +7,7 @@ export type Location = { latitude: number, longitude: number, altitude: number, 
 export type Satellite = {
   name: string
   norad: string
-  '3leLines': [string, string, string]
+  omm: OMMJsonObject
 }
 export type PropagatedSatellite = {
   norad: string

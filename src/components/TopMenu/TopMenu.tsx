@@ -1,9 +1,9 @@
-import { FC, memo, ReactNode } from 'react'
+import { FC, memo, ReactNode, RefObject } from 'react'
 import { Divider, Stack } from '@mui/material'
 
-const TopMenuFC: FC<{ children: ReactNode | ReactNode[] }> = ({ children }) => {
+const TopMenuFC: FC<{ children: ReactNode | ReactNode[], ref: RefObject<HTMLDivElement | null> }> = ({ children, ref }) => {
   return (
-    <div style={{ display: 'grid', placeItems: 'center' }}>
+    <div style={{ display: 'grid', placeItems: 'center' }} ref={ref}>
       <Stack direction='row' divider={<Divider orientation='vertical' flexItem />}>{children}</Stack>
     </div>
   )

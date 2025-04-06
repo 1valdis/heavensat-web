@@ -7,8 +7,7 @@ import { Viewport, Panning, Location, HIPStar } from '../../common/types.js'
 import { Assets } from '../App/assets-loader.js'
 import { PropagationResultsWithChangedFlag } from './propagator.js'
 import { SATELLITE_FLOATS_PER_POSITION, SATELLITE_INTS_PER_ID, SATELLITE_INTS_PER_SHADOW, SATELLITE_INTS_PER_VERTEX, TEXT_FLOATS_PER_ORIGIN, TEXT_FLOATS_PER_POSITION, TEXT_FLOATS_PER_UV, TEXT_FLOATS_PER_VERTEX } from './scene-constants.js'
-import { gstime } from '../../satellite.js/src/index.js'
-import { SatRec } from '../../satellite.js/types/index.js'
+import { gstime } from 'satellite.js'
 
 export type ShaderProgramsMap = {
   sky: {

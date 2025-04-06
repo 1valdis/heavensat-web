@@ -67,7 +67,7 @@ class Propagator extends typedEventTarget {
     this.latestInitializeQuery = {
       type: 'init',
       queryId: crypto.randomUUID(),
-      '3LEs': satellites.map(sat => sat['3leLines']),
+      omm: satellites.map(sat => sat.omm),
       ids: satellites.map((sat, index) => index + offset),
       msdfDefinition
     }

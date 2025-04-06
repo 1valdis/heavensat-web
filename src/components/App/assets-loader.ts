@@ -1,10 +1,10 @@
 import satelliteImage from '../assets/sat.png'
 import selectedSatelliteImage from '../assets/satsel.png'
 import msdfImage from '../assets/msdf.png'
-import satelliteCatalog from '../assets/3le.txt?url'
 import { HIPStarOriginal } from '../../common/types.js'
 import type MsdfDefinition from '../assets/msdf-definition.json'
 import { use } from 'react'
+import { OMMJsonObject } from 'satellite.js'
 
 export type Assets = {
   textures: {
@@ -15,7 +15,7 @@ export type Assets = {
   catalogs: {
     stars: HIPStarOriginal[]
     constellations: (string | number)[][]
-    satellites: string[]
+    satellites: OMMJsonObject[]
   },
   msdfDefinition: typeof MsdfDefinition
 }
@@ -36,7 +36,7 @@ export async function fetchAssets (): Promise<Assets> {
     loadImage(msdfImage),
     import('../assets/hipparcos_8_concise.json'),
     import('../assets/constellations.json'),
-    fetch(satelliteCatalog).then(r => r.text()),
+    import('../assets/omm.json'),
     import('../assets/msdf-definition.json')
   ])
 
@@ -49,7 +49,7 @@ export async function fetchAssets (): Promise<Assets> {
     catalogs: {
       stars: starCatalog.default as HIPStarOriginal[],
       constellations: constellationLineship.default,
-      satellites: satelliteCatalogLoaded.split('\n').slice(0, -1)
+      satellites: satelliteCatalogLoaded.default as OMMJsonObject[]
     },
     msdfDefinition: msdfDefinition.default
   }

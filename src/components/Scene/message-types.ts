@@ -1,3 +1,4 @@
+import { OMMJsonObject } from 'satellite.js'
 import { Location } from '../../common/types'
 import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 import { MsdfDefinition } from './msdf'
@@ -9,7 +10,8 @@ export type BasicEvent = {
 
 export type InitQuery = BasicEvent & {
   type: 'init',
-  '3LEs': Array<[string, string, string]>,
+  // '3LEs': Array<[string, string, string]>,
+  omm: OMMJsonObject[]
   ids: Array<number>,
   msdfDefinition: MsdfDefinition
 }

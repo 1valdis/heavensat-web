@@ -1,4 +1,4 @@
-import * as satellite from '../satellite.js'
+import * as satellite from 'satellite.js'
 
 const EARTH_RADIUS = 6371.135
 

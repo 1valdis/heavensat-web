@@ -1,20 +1,23 @@
 import { useMemo } from 'react'
 import { Assets } from '../App/assets-loader'
 import { Satellite } from '../../common/types.js'
+import { OMMJsonObject } from 'satellite.js'
 
-const catalogLinesToSatellites = (catalogLines: string[]) => {
+const catalogToSatellites = (catalog: OMMJsonObject[]) => {
   const satellites: Satellite[] = []
   const satellitesMap: Map<number, Satellite> = new Map()
-  for (let i = 0; i < catalogLines.length; i += 3) {
+  let i = 0
+  for (const omm of catalog) {
     const satellite: Satellite = {
-      name: catalogLines[i]!.slice(2),
-      norad: catalogLines[i + 1]!.slice(2, 7),
-      '3leLines': [catalogLines[i]!, catalogLines[i + 1]!, catalogLines[i + 2]!]
+      name: omm.OBJECT_NAME,
+      norad: omm.NORAD_CAT_ID.toString(),
+      omm
     }
     satellites.push(satellite)
-    satellitesMap.set(i / 3, satellite)
+    satellitesMap.set(i, satellite)
+    i += 1
   }
   return { satellites, satellitesMap }
 }
 
-export const useSatellites = (assets: Assets) => useMemo(() => catalogLinesToSatellites(assets.catalogs.satellites), [assets.catalogs.satellites])
+export const useSatellites = (assets: Assets) => useMemo(() => catalogToSatellites(assets.catalogs.satellites), [assets.catalogs.satellites])

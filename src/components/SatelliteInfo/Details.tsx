@@ -1,13 +1,12 @@
 import { FC, memo, useMemo } from 'react'
-import { degreesToRadians, eciToEcf, gstime, propagate, ecfToLookAngles, twoline2satrec, radiansToDegrees } from '../../satellite.js/src/index.js'
-import { LookAngles, PositionAndVelocity } from '../../satellite.js/types/index.js'
+import { degreesToRadians, eciToEcf, gstime, propagate, ecfToLookAngles, radiansToDegrees, LookAngles, PositionAndVelocity, json2satrec } from 'satellite.js'
 import { Location, Satellite } from '../../common/types.js'
 import { Typography } from '@mui/material'
 import { getApogee, getPerigee, getPeriodMinutes } from '../../common/satellite-calculations.js'
 import './Details.css'
 
 const SatelliteDetailsFC: FC<{ location: Location, satellite: Satellite, date: Date }> = ({ location, satellite, date }) => {
-  const satRec = useMemo(() => twoline2satrec(satellite['3leLines'][1], satellite['3leLines'][2]), [satellite])
+  const satRec = useMemo(() => json2satrec(satellite.omm), [satellite])
   const positionEci = propagate(satRec, date) as PositionAndVelocity
   const gmst = gstime(date)
   const positionEcf = positionEci.position ? eciToEcf(positionEci.position, gmst) : null
@@ -17,16 +16,14 @@ const SatelliteDetailsFC: FC<{ location: Location, satellite: Satellite, date: D
     height: location.altitude / 1000
   }
   const lookAngles = positionEcf ? ecfToLookAngles(locationForLib, positionEcf) as LookAngles : null
-  const cosparAsInTLE = satellite['3leLines'][1].substring(9, 17)
-  const firstLaunchYear = 57
-  const formattedCospar = `${+cosparAsInTLE.slice(0, 2) > firstLaunchYear ? '19' : '20'}${cosparAsInTLE.slice(0, 2)}-${cosparAsInTLE.slice(2)}`
+  const cospar = satellite.omm.OBJECT_ID
   return (
     <div className='satellite-details'>
       <section style={{ gridArea: 'general' }}>
         <Typography variant='caption' color='textSecondary'>Name</Typography>
         <Typography variant='body2'>{satellite.name}</Typography>
         <Typography variant='caption' color='textSecondary'>International Designator (COSPAR)</Typography>
-        <Typography variant='body2'>{formattedCospar}</Typography>
+        <Typography variant='body2'>{cospar}</Typography>
         <Typography variant='caption' color='textSecondary'>NORAD ID</Typography>
         <Typography variant='body2'>{satellite.norad}</Typography>
       </section>
@@ -67,9 +64,9 @@ const SatelliteDetailsFC: FC<{ location: Location, satellite: Satellite, date: D
         <Typography variant='body2'>{positionEci.velocity ? `${Math.sqrt(positionEci.velocity.x ** 2 + positionEci.velocity.y ** 2 + positionEci.velocity.z ** 2).toFixed(3)} km/s` : '-'}</Typography>
       </section> */}
       <section style={{ gridArea: 'tle' }}>
-        <Typography variant='body1'>{satellite.name}</Typography>
-        <pre>{satellite['3leLines'][1]}</pre>
-        <pre>{satellite['3leLines'][2]}</pre>
+        <pre>{satellite.omm['TLE_LINE0'] as string}</pre>
+        <pre>{satellite.omm['TLE_LINE1'] as string}</pre>
+        <pre>{satellite.omm['TLE_LINE2'] as string}</pre>
       </section>
     </div>
   )

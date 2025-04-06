@@ -14,7 +14,8 @@
     "luxon": "^3.4.4",
     "ootk": "^4.0.2",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "satellite.js": "^6.0.0"
   },
   "type": "module",
   "devDependencies": {

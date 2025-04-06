@@ -1,4 +1,3 @@
-import * as satellite from '../../satellite.js/src/index.js'
 import { WorkerAnswer, WorkerQuery } from './message-types'
 import { MsdfGeometry, MsdfGeometryBuilder } from './msdf'
 import { TEXT_FLOATS_PER_ORIGIN, TEXT_FLOATS_PER_POSITION, TEXT_FLOATS_PER_UV, TEXT_FLOATS_PER_VERTEX, TEXT_VERTICES_PER_QUAD } from './scene-constants.js'
@@ -6,7 +5,8 @@ import { SatelliteFilter } from '../SatelliteFilter/SatellitesFilter.js'
 import { Body, GeoVector, KM_PER_AU } from 'astronomy-engine'
 import { vec3 } from 'gl-matrix'
 import { getApogee, getPerigee, getPeriodMinutes } from '../../common/satellite-calculations.js'
-import { EciVec3, Kilometer, LookAngles, PositionAndVelocity, SatRec } from '../../satellite.js/types/index.js'
+import { EciVec3, Kilometer, LookAngles, MeanElements, SatRec } from 'satellite.js'
+import * as satellite from 'satellite.js'
 
 function lookAnglesToCartesian (elevation: number, azimuth: number): [number, number, number] {
   const x = Math.cos(elevation) * Math.cos(azimuth)
@@ -51,8 +51,7 @@ const EARTH_RADIUS = 6371.135
 const SUN_RADIUS = 695700
 
 // eslint-disable-next-line sonarjs/cognitive-complexity
-const isSatellitePassingTheFilters = (filter: SatelliteFilter, elements: PositionAndVelocity) => {
-  const { meanElements } = elements
+const isSatellitePassingTheFilters = (filter: SatelliteFilter, meanElements: MeanElements) => {
   // decayed satellites: if period is more than 100 days, propagation is probably borked
   if (getPeriodMinutes(meanElements) > 60 * 24 * 100) {
     return false
@@ -130,7 +129,7 @@ function isInShadowForDate (date: Date) {
 self.onmessage = (e: MessageEvent<WorkerQuery>) => {
   if (e.data.type === 'init') {
     const ids = e.data.ids
-    if (ids.length !== e.data['3LEs'].length) {
+    if (ids.length !== e.data.omm.length) {
       throw new Error('Ids must match 3LEs in length')
     }
     geometriesMap.clear()
@@ -138,10 +137,10 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
     geometriesUVCoordsMap.clear()
     noradToIdMap.clear()
     const geometryBuilder = new MsdfGeometryBuilder(e.data.msdfDefinition)
-    satRecs = e.data['3LEs']
-      .map((tle, index) => {
-        const satRec = satellite.twoline2satrec(tle[1], tle[2])
-        const geometry = geometryBuilder.textToGeometry(tle[0].slice(2))
+    satRecs = e.data.omm
+      .map((omm, index) => {
+        const satRec = satellite.json2satrec(omm)
+        const geometry = geometryBuilder.textToGeometry(omm.OBJECT_NAME)
         geometriesMap.set(satRec.satnum, geometry)
         geometriesPositionsMap.set(satRec.satnum, new Float32Array(geometry.chars.flatMap(char => [
           char.iXY[0], char.iXY[1],
@@ -181,7 +180,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
     const positions = satRecs
       .map((satRec) => {
         const positionEci = satellite.propagate(satRec, date)
-        if (typeof positionEci.position !== 'object') {
+        if (!positionEci) {
           return null
         }
         return {
@@ -194,7 +193,7 @@ self.onmessage = (e: MessageEvent<WorkerQuery>) => {
         }
       })
       .filter((position) => !!position)
-      .filter(({ positionEci }) => isSatellitePassingTheFilters(filter, positionEci))
+      .filter(({ positionEci }) => isSatellitePassingTheFilters(filter, positionEci.meanElements))
       .map(({ positionEci, norad }) => {
         const positionEcf = satellite.eciToEcf(positionEci.position, gmst)
         const lookAngles = satellite.ecfToLookAngles(locationForLib, positionEcf) as LookAngles
